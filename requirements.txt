@@ -1,0 +1,3 @@
+# stars-reborn-ui — runtime dependencies
+PySide6>=6.6
+requests>=2.31

@@ -1,0 +1,32 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=2048]   # allows PNG assets up to 2 MB
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: xenon
+        name: xenon (complexity)
+        entry: xenon
+        language: python
+        additional_dependencies: [xenon]
+        types: [python]
+        pass_filenames: false
+        args:
+          - --max-average=A
+          - --max-modules=B
+          - --max-absolute=C
+          - src/

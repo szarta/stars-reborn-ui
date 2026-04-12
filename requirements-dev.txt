@@ -1,0 +1,12 @@
+# Development dependencies — install with: pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Linting / formatting
+ruff>=0.15
+
+# Code complexity
+xenon>=0.9
+radon>=6.0      # pulled in by xenon; listed explicitly for version visibility
+
+# Pre-commit hook runner
+pre-commit>=4.5
