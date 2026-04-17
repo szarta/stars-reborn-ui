@@ -22,6 +22,12 @@ def main(argv=None):
         "--version", action="version", version=__version__, help="show the version and exit"
     )
     parser.add_argument("--no-gui", help="run in headless mode (for testing)", action="store_true")
+    parser.add_argument(
+        "--engine-url",
+        default="http://localhost:8080",
+        metavar="URL",
+        help="base URL of the Stars Reborn engine (default: http://localhost:8080)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -46,7 +52,7 @@ def main(argv=None):
     app = create_app(sys.argv)
     load_language_map(ResourcePaths.EnglishLanguageMap)
 
-    window = IntroUI()
+    window = IntroUI(engine_url=args.engine_url)
     window.show()
 
     return app.exec()
