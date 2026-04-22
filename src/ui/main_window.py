@@ -2,9 +2,18 @@
 ui/main_window.py
 
 QMainWindow for the main game screen.
-Contains: menu bar, toolbar, central space map, right-dock info panel, status bar.
 
-Ported from src/ui/turn/editor.py (PySide → PySide6, SVG map → QPainter).
+Layout
+------
+  [Menu bar]
+  [Toolbar]
+  ┌────────────────────────────────────────────────────┐
+  │  LeftPanel (~400 px)  │  SpaceMap                  │
+  │  col1  │  col2        │                            │
+  │  ────── ──────        ├────────────────────────────┤
+  │  Messages pane        │  PlanetSummaryWidget        │
+  └────────────────────────────────────────────────────┘
+  [Status bar]
 """
 
 from __future__ import annotations
@@ -13,18 +22,19 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QDockWidget,
     QLabel,
     QMainWindow,
     QPushButton,
     QSizePolicy,
+    QSplitter,
     QStatusBar,
     QToolBar,
     QWidget,
 )
 
 from ..rendering.enumerations import PlanetView, ResourcePaths, ZoomLevel
-from .info_panel import InfoPanel
+from .info_panel import LeftPanel
+from .planet_summary import PlanetSummaryWidget
 from .space_map import SpaceMap
 
 _TOOLBAR_ICON_SIZE = QSize(24, 24)
@@ -63,7 +73,7 @@ class MainWindow(QMainWindow):
     game_name:
         Title bar suffix.
     player:
-        Full player object (optional, passed to InfoPanel for race-aware display).
+        Full player object (optional, passed to panels for race-aware display).
     """
 
     def __init__(
@@ -99,25 +109,36 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"Stars Reborn — {self._game_name}")
         self.setGeometry(100, 100, 1280, 800)
 
-        # Central space map
+        # Left command panel
+        self._left_panel = LeftPanel()
+        self._left_panel.set_year(self._game_year)
+
+        # Space map
         self._space_map = SpaceMap()
         self._space_map.planet_selected.connect(self._on_planet_selected)
         self._space_map.planet_activated.connect(self._on_planet_activated)
         self._space_map.hover_world.connect(self._on_hover_world)
-        self.setCentralWidget(self._space_map)
 
-        # Right dock — info panel
-        self._info_panel = InfoPanel()
-        dock = QDockWidget("Planet Info", self)
-        dock.setWidget(self._info_panel)
-        dock.setAllowedAreas(Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
-        dock.setFeatures(
-            QDockWidget.DockWidgetFeature.DockWidgetMovable
-            | QDockWidget.DockWidgetFeature.DockWidgetClosable
-            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
-        )
-        self.addDockWidget(Qt.RightDockWidgetArea, dock)
-        self._info_dock = dock
+        # Planet summary (below space map)
+        self._planet_summary = PlanetSummaryWidget()
+
+        # Right pane: space map (top) + summary (bottom)
+        right_splitter = QSplitter(Qt.Vertical)
+        right_splitter.addWidget(self._space_map)
+        right_splitter.addWidget(self._planet_summary)
+        right_splitter.setStretchFactor(0, 3)
+        right_splitter.setStretchFactor(1, 1)
+        right_splitter.setSizes([560, 200])
+
+        # Main horizontal split: left panel | space map + summary
+        main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter.addWidget(self._left_panel)
+        main_splitter.addWidget(right_splitter)
+        main_splitter.setStretchFactor(0, 0)
+        main_splitter.setStretchFactor(1, 1)
+        main_splitter.setSizes([420, 860])
+
+        self.setCentralWidget(main_splitter)
 
     def _load_universe(self):
         self._space_map.set_universe(
@@ -287,7 +308,6 @@ class MainWindow(QMainWindow):
 
         tb.addSeparator()
 
-        # Zoom in / out
         zoom_in_btn = QPushButton("+")
         zoom_in_btn.setFixedSize(24, 24)
         zoom_in_btn.setToolTip("Zoom In")
@@ -306,12 +326,10 @@ class MainWindow(QMainWindow):
         zoom_fit_btn.clicked.connect(self._handle_zoom_fit)
         tb.addWidget(zoom_fit_btn)
 
-        # Spacer
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         tb.addWidget(spacer)
 
-        # Year display + Next Turn
         self._year_label = QLabel(f"Year {self._game_year}")
         self._year_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self._year_label.setStyleSheet("font-weight: bold; padding: 0 8px;")
@@ -343,20 +361,8 @@ class MainWindow(QMainWindow):
     def _init_status_bar(self):
         sb = QStatusBar()
         self.setStatusBar(sb)
-
-        self._coords_label = QLabel("X: —  Y: —")
-        self._coords_label.setFrameStyle(1)  # QFrame.Panel
-        self._coords_label.setMinimumWidth(120)
-
-        self._planet_label = QLabel("")
-        self._planet_label.setFrameStyle(1)
-        self._planet_label.setMinimumWidth(150)
-
         self._year_status_label = QLabel(f"Year {self._game_year}")
         self._year_status_label.setFrameStyle(1)
-
-        sb.addWidget(self._coords_label)
-        sb.addWidget(self._planet_label)
         sb.addPermanentWidget(self._year_status_label)
 
     # ── slots ───────────────────────────────────────────────────────────────
@@ -366,10 +372,8 @@ class MainWindow(QMainWindow):
         if planet is None:
             return
         self._selected_planet = planet
-        self._planet_label.setText(planet.name)
-        self._info_panel.update_planet(planet, self._player)
-        if self._info_dock.isHidden():
-            self._info_dock.show()
+        self._left_panel.update_planet(planet, self._player)
+        self._planet_summary.update_planet(planet, self._player)
 
     def _on_planet_activated(self, pid: int):
         """Double-click on a planet — open the full detail dialog."""
@@ -377,8 +381,8 @@ class MainWindow(QMainWindow):
         if planet is None:
             return
         self._selected_planet = planet
-        self._planet_label.setText(planet.name)
-        self._info_panel.update_planet(planet, self._player)
+        self._left_panel.update_planet(planet, self._player)
+        self._planet_summary.update_planet(planet, self._player)
         try:
             from .dialogs.planet import PlanetDialog
 
@@ -388,7 +392,7 @@ class MainWindow(QMainWindow):
             pass
 
     def _on_hover_world(self, wx: int, wy: int):
-        self._coords_label.setText(f"X: {wx}  Y: {wy}")
+        self._planet_summary.update_hover_coords(wx, wy)
 
     # ── toolbar / menu handlers ─────────────────────────────────────────────
 
@@ -459,6 +463,7 @@ class MainWindow(QMainWindow):
         self._game_year += 1
         self._year_label.setText(f"Year {self._game_year}")
         self._year_status_label.setText(f"Year {self._game_year}")
+        self._left_panel.set_year(self._game_year)
         self.statusBar().showMessage(f"Turn generated — Year {self._game_year}")
 
     def _handle_ship_design(self):

@@ -15,6 +15,8 @@ multiplayer configuration, custom victory conditions, and game flags.
 
 from __future__ import annotations
 
+import random
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -41,6 +43,8 @@ _PREDEFINED_RACES = [
     "Silcanoid",
     "Antetheral",
 ]
+
+_RANDOM_RACE = "Random"
 
 # ── Difficulty options ────────────────────────────────────────────────────────
 
@@ -153,6 +157,7 @@ class NewGameDialog(QDialog):
         race_layout.setSpacing(6)
 
         self._race_combo = QComboBox()
+        self._race_combo.addItem(_RANDOM_RACE)
         for name in _PREDEFINED_RACES:
             self._race_combo.addItem(name)
         race_layout.addWidget(self._race_combo)
@@ -213,12 +218,19 @@ class NewGameDialog(QDialog):
     # ── Public API ────────────────────────────────────────────────────────────
 
     def game_settings(self) -> dict:
-        """Return selected settings; call only after the dialog is accepted."""
+        """Return selected settings; call only after the dialog is accepted.
+
+        If the player chose Random, a race is picked here so the engine always
+        receives a concrete race name.
+        """
+        race = self._race_combo.currentText()
+        if race == _RANDOM_RACE:
+            race = random.choice(_PREDEFINED_RACES)
         return {
             "difficulty": self._selected_difficulty(),
             "universe": {
                 "size": self._selected_size(),
                 "density": "normal",
             },
-            "race": self._race_combo.currentText(),
+            "race": race,
         }

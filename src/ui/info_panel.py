@@ -1,10 +1,11 @@
 """
 ui/info_panel.py
 
-Right-side context panel showing details for the selected planet or fleet.
-Ported from src/ui/turn/statuspane.py and src/ui/turn/resourceinfo.py (PySide → PySide6).
+Left-side command panel: two columns of context-sensitive sections + messages pane.
 
-Accepts the same duck-typed planet objects as SpaceMap (Python Planet or Rust Planet).
+Column 1: Planet header (name/icon/nav), Minerals On Hand, Status
+Column 2: Fleets In Orbit, Production, Route To, Starbase
+Bottom:   Messages pane
 """
 
 from __future__ import annotations
@@ -13,14 +14,18 @@ import glob
 import math
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QBoxLayout,
+    QCheckBox,
+    QComboBox,
     QFrame,
     QLabel,
+    QListWidget,
+    QProgressBar,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
+    QSplitter,
     QWidget,
 )
 
@@ -28,18 +33,17 @@ from ..rendering.enumerations import PrimaryRacialTrait, ResourcePaths
 
 
 def _getattr_safe(obj, *attrs, default=None):
-    """Return the first attribute that exists on obj, else default."""
     for attr in attrs:
         if hasattr(obj, attr):
             return getattr(obj, attr)
     return default
 
 
-# ── Section title bar with hide/show arrow ─────────────────────────────────
+# ── Section title bar with collapse arrow ─────────────────────────────────
 
 
 class _SectionPane(QWidget):
-    """Collapsible titled section used in the info panel."""
+    """Collapsible titled section — common building block for both panel columns."""
 
     def __init__(self, title: str, parent=None):
         super().__init__(parent)
@@ -54,8 +58,6 @@ class _SectionPane(QWidget):
         arrow_pix = QPixmap(ResourcePaths.HideArrowPath)
         self._toggle_btn = QPushButton()
         if not arrow_pix.isNull():
-            from PySide6.QtGui import QIcon
-
             self._toggle_btn.setIcon(QIcon(arrow_pix))
             self._toggle_btn.setIconSize(arrow_pix.rect().size())
         else:
@@ -82,7 +84,6 @@ class _SectionPane(QWidget):
 
     def set_content_layout(self, layout):
         if self._content.layout():
-            # Replace old layout
             old = self._content.layout()
             while old.count():
                 item = old.takeAt(0)
@@ -103,10 +104,12 @@ class _SectionPane(QWidget):
             self._hidden = True
 
 
-# ── Planet image section ────────────────────────────────────────────────────
+# ── Column 1: Planet header ────────────────────────────────────────────────
 
 
-class _PlanetImageSection(_SectionPane):
+class _PlanetHeaderSection(_SectionPane):
+    """Planet name (title bar) + planet image + Prev/Next navigation."""
+
     def __init__(self, parent=None):
         super().__init__("", parent)
         self._planet_files = sorted(glob.glob(f"{ResourcePaths.PlanetsPath}/*.png"))
@@ -114,12 +117,10 @@ class _PlanetImageSection(_SectionPane):
         self._picture = QLabel()
         self._picture.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
         self._picture.setAlignment(Qt.AlignCenter)
-        self._picture.setFixedSize(80, 80)
+        self._picture.setFixedSize(68, 68)
 
-        self._prev_btn = QPushButton("◀")
-        self._prev_btn.setFixedWidth(24)
-        self._next_btn = QPushButton("▶")
-        self._next_btn.setFixedWidth(24)
+        self._prev_btn = QPushButton("Prev")
+        self._next_btn = QPushButton("Next")
 
         btn_col = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         btn_col.addWidget(self._prev_btn)
@@ -132,7 +133,6 @@ class _PlanetImageSection(_SectionPane):
         row.addWidget(self._picture)
         row.addLayout(btn_col)
         row.addStretch(1)
-
         self.set_content_layout(row)
 
     def update_planet(self, planet):
@@ -142,77 +142,26 @@ class _PlanetImageSection(_SectionPane):
             pix = QPixmap(path)
             if not pix.isNull():
                 self._picture.setPixmap(
-                    pix.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    pix.scaled(68, 68, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 )
                 return
         self._picture.clear()
 
 
-# ── Summary (value + population) ───────────────────────────────────────────
-
-
-class _SummarySection(_SectionPane):
-    def __init__(self, parent=None):
-        super().__init__("Summary", parent)
-
-        self._value_label = QLabel()
-        self._report_label = QLabel()
-        self._pop_label = QLabel()
-
-        col = QBoxLayout(QBoxLayout.Direction.TopToBottom)
-        col.setContentsMargins(4, 4, 4, 4)
-        col.setSpacing(2)
-        col.addWidget(self._value_label)
-        col.addWidget(self._report_label)
-        col.addWidget(self._pop_label)
-        self.set_content_layout(col)
-
-    def update_planet(self, planet):
-        from ..rendering.enumerations import NeverSeenPlanet
-
-        years_since = getattr(planet, "years_since", 0)
-
-        if years_since == NeverSeenPlanet:
-            self._value_label.setText("Unknown")
-            self._report_label.setText("")
-            self._pop_label.setText("")
-            return
-
-        value = getattr(planet, "value", None)
-        if value is not None:
-            color = "green" if value >= 0 else "red"
-            self._value_label.setText(f'Value: <font color="{color}"><b>{value}%</b></font>')
-        else:
-            self._value_label.setText("")
-
-        if years_since == 0:
-            self._report_label.setText('<font color="white">Report is current</font>')
-        elif years_since > 0:
-            self._report_label.setText(
-                f'<font color="red">Report is {years_since} year(s) old</font>'
-            )
-        else:
-            self._report_label.setText("")
-
-        pop = getattr(planet, "population", 0)
-        if pop == 0:
-            self._pop_label.setText("Uninhabited")
-        else:
-            self._pop_label.setText(f"Population: {pop:,}")
-
-
-# ── Minerals on hand ────────────────────────────────────────────────────────
+# ── Column 1: Minerals On Hand ─────────────────────────────────────────────
 
 
 class _MineralsSection(_SectionPane):
-    def __init__(self, parent=None):
-        super().__init__("Minerals on Hand", parent)
+    """Surface minerals (Ironium/Boranium/Germanium in kT) + mines and factories."""
 
-        self._iron_val = QLabel()
-        self._bor_val = QLabel()
-        self._ger_val = QLabel()
-        self._mines_val = QLabel()
-        self._factories_val = QLabel()
+    def __init__(self, parent=None):
+        super().__init__("Minerals On Hand", parent)
+
+        self._iron_val = QLabel("0 kT")
+        self._bor_val = QLabel("0 kT")
+        self._ger_val = QLabel("0 kT")
+        self._mines_val = QLabel("0")
+        self._factories_val = QLabel("0")
 
         iron_lbl = QLabel("<b>Ironium</b>")
         iron_lbl.setStyleSheet("color: #4488ff")
@@ -263,140 +212,337 @@ class _MineralsSection(_SectionPane):
             self._factories_val.setText(str(getattr(planet, "factories", 0)))
 
 
-# ── Mineral concentrations ──────────────────────────────────────────────────
+# ── Column 1: Status ───────────────────────────────────────────────────────
 
 
-class _ConcentrationSection(_SectionPane):
+class _StatusSection(_SectionPane):
+    """Population, resources/year, scanner, defenses."""
+
     def __init__(self, parent=None):
-        super().__init__("Mineral Concentrations", parent)
+        super().__init__("Status", parent)
 
-        self._iron_val = QLabel()
-        self._bor_val = QLabel()
-        self._ger_val = QLabel()
+        self._pop_val = QLabel("n/a")
+        self._res_val = QLabel("n/a")
+        self._scanner_type_val = QLabel("n/a")
+        self._scanner_range_val = QLabel("n/a")
+        self._defenses_val = QLabel("n/a")
+        self._defense_type_val = QLabel("n/a")
+        self._def_coverage_val = QLabel("n/a")
 
-        iron_lbl = QLabel("<b>Ironium</b>")
-        iron_lbl.setStyleSheet("color: #4488ff")
-        bor_lbl = QLabel("<b>Boranium</b>")
-        bor_lbl.setStyleSheet("color: #44cc44")
-        ger_lbl = QLabel("<b>Germanium</b>")
-        ger_lbl.setStyleSheet("color: #dddd00")
-
-        def _row(lbl, val):
-            r = QBoxLayout(QBoxLayout.Direction.LeftToRight)
-            r.addWidget(lbl)
-            r.addStretch(1)
-            r.addWidget(val)
-            return r
+        rows = [
+            ("Population", self._pop_val),
+            ("Resources/Year", self._res_val),
+            ("Scanner Type", self._scanner_type_val),
+            ("Scanner Range", self._scanner_range_val),
+            ("Defenses", self._defenses_val),
+            ("Defense Type", self._defense_type_val),
+            ("Def Coverage", self._def_coverage_val),
+        ]
 
         col = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         col.setContentsMargins(4, 4, 4, 4)
-        col.setSpacing(2)
-        col.addLayout(_row(iron_lbl, self._iron_val))
-        col.addLayout(_row(bor_lbl, self._bor_val))
-        col.addLayout(_row(ger_lbl, self._ger_val))
+        col.setSpacing(1)
+        for lbl_text, val_lbl in rows:
+            r = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+            r.addWidget(QLabel(lbl_text))
+            r.addStretch(1)
+            r.addWidget(val_lbl)
+            col.addLayout(r)
         self.set_content_layout(col)
 
-    def update_planet(self, planet):
-        self._iron_val.setText(str(getattr(planet, "ironium_concentration", 0)))
-        self._bor_val.setText(str(getattr(planet, "boranium_concentration", 0)))
-        self._ger_val.setText(str(getattr(planet, "germanium_concentration", 0)))
+    def update_planet(self, planet, player=None):
+        pop = getattr(planet, "population", 0)
+        self._pop_val.setText(f"{pop:,}" if pop else "0")
+
+        res = getattr(planet, "resources_per_year", None)
+        cap = getattr(planet, "resource_capacity", None)
+        if res is not None and cap is not None:
+            self._res_val.setText(f"{res} of {cap}")
+        elif res is not None:
+            self._res_val.setText(str(res))
+        else:
+            self._res_val.setText("n/a")
+
+        scanner = getattr(planet, "scanner_type", None)
+        self._scanner_type_val.setText(scanner or "n/a")
+
+        sr = getattr(planet, "scanner_range", None)
+        self._scanner_range_val.setText(f"{sr} light years" if sr is not None else "n/a")
+
+        defenses = getattr(planet, "defenses", None)
+        self._defenses_val.setText(str(defenses) if defenses is not None else "n/a")
+
+        def_type = getattr(planet, "defense_type", None)
+        self._defense_type_val.setText(def_type or "n/a")
+
+        coverage = getattr(planet, "defense_coverage", None)
+        self._def_coverage_val.setText(str(coverage) if coverage is not None else "n/a")
 
 
-# ── Hab display (gravity / temperature / radiation) ─────────────────────────
+# ── Column 2: Fleets In Orbit ─────────────────────────────────────────────
 
 
-class _HabSection(_SectionPane):
+class _FleetsInOrbitSection(_SectionPane):
+    """Fleet selector dropdown + fuel/cargo bars + Goto/Cargo buttons."""
+
     def __init__(self, parent=None):
-        super().__init__("Habitat", parent)
+        super().__init__("Fleets in Orbit", parent)
 
-        self._grav_val = QLabel()
-        self._temp_val = QLabel()
-        self._rad_val = QLabel()
+        self._fleet_combo = QComboBox()
+        self._fleet_combo.addItem("(No fleets in orbit)")
+
+        def _bar_row(label_text):
+            lbl = QLabel(label_text)
+            lbl.setFixedWidth(38)
+            bar = QProgressBar()
+            bar.setRange(0, 100)
+            bar.setValue(0)
+            bar.setTextVisible(False)
+            bar.setFixedHeight(14)
+            r = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+            r.addWidget(lbl)
+            r.addWidget(bar, 1)
+            return r, bar
+
+        fuel_row, self._fuel_bar = _bar_row("Fuel")
+        cargo_row, self._cargo_bar = _bar_row("Cargo")
+
+        btn_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        btn_row.addWidget(QPushButton("Goto"))
+        btn_row.addStretch(1)
+        btn_row.addWidget(QPushButton("Cargo"))
+
+        col = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        col.setContentsMargins(4, 4, 4, 4)
+        col.setSpacing(3)
+        col.addWidget(self._fleet_combo)
+        col.addLayout(fuel_row)
+        col.addLayout(cargo_row)
+        col.addLayout(btn_row)
+        self.set_content_layout(col)
+
+
+# ── Column 2: Production ───────────────────────────────────────────────────
+
+
+class _ProductionSection(_SectionPane):
+    """Production queue for the selected planet."""
+
+    def __init__(self, parent=None):
+        super().__init__("Production", parent)
+
+        self._queue = QListWidget()
+        self._queue.setMinimumHeight(70)
+        self._queue.addItem("--- Queue is Empty ---")
+
+        col = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        col.setContentsMargins(4, 4, 4, 4)
+        col.addWidget(self._queue)
+        self.set_content_layout(col)
+
+
+# ── Column 2: Route To ────────────────────────────────────────────────────
+
+
+class _RouteSection(_SectionPane):
+    """Route destination + Change/Clear/Route buttons."""
+
+    def __init__(self, parent=None):
+        super().__init__("Route To", parent)
+
+        dest_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        dest_row.addWidget(QLabel("Route to"))
+        dest_row.addStretch(1)
+        self._dest_label = QLabel("none")
+        dest_row.addWidget(self._dest_label)
+
+        btn_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        btn_row.addWidget(QPushButton("Change"))
+        btn_row.addWidget(QPushButton("Clear"))
+        btn_row.addStretch(1)
+        btn_row.addWidget(QPushButton("Route"))
+
+        col = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        col.setContentsMargins(4, 4, 4, 4)
+        col.setSpacing(4)
+        col.addLayout(dest_row)
+        col.addLayout(btn_row)
+        self.set_content_layout(col)
+
+
+# ── Column 2: Starbase ────────────────────────────────────────────────────
+
+
+class _StarbaseSection(_SectionPane):
+    """Starbase stats for the selected planet."""
+
+    def __init__(self, parent=None):
+        super().__init__("Starbase", parent)
+
+        self._dock_val = QLabel("n/a")
+        self._armor_val = QLabel("n/a")
+        self._shields_val = QLabel("n/a")
+        self._damage_val = QLabel("n/a")
+        self._mass_driver_val = QLabel("n/a")
+        self._dest_val = QLabel("n/a")
 
         def _row(lbl_text, val_lbl):
             r = QBoxLayout(QBoxLayout.Direction.LeftToRight)
-            r.addWidget(QLabel(f"<b>{lbl_text}</b>"))
+            r.addWidget(QLabel(lbl_text))
             r.addStretch(1)
             r.addWidget(val_lbl)
             return r
 
         col = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         col.setContentsMargins(4, 4, 4, 4)
-        col.setSpacing(2)
-        col.addLayout(_row("Gravity", self._grav_val))
-        col.addLayout(_row("Temperature", self._temp_val))
-        col.addLayout(_row("Radiation", self._rad_val))
+        col.setSpacing(1)
+        col.addLayout(_row("Dock Capacity", self._dock_val))
+        col.addLayout(_row("Armor", self._armor_val))
+        col.addLayout(_row("Shields", self._shields_val))
+        col.addLayout(_row("Damage", self._damage_val))
+        col.addLayout(_row("Mass Driver", self._mass_driver_val))
+        col.addLayout(_row("Destination", self._dest_val))
+        set_dest = QPushButton("Set Dest")
+        set_dest.setEnabled(False)
+        col.addWidget(set_dest, 0, Qt.AlignLeft)
         self.set_content_layout(col)
 
-    def update_planet(self, planet):
-        grav = getattr(planet, "gravity", None)
-        self._grav_val.setText(f"{grav:.2f}g" if grav is not None else "?")
-        temp = getattr(planet, "temperature", None)
-        self._temp_val.setText(f"{temp}°C" if temp is not None else "?")
-        rad = getattr(planet, "radiation", None)
-        self._rad_val.setText(f"{rad} mR/yr" if rad is not None else "?")
+
+# ── Messages pane ──────────────────────────────────────────────────────────
 
 
-# ── Top-level info panel ────────────────────────────────────────────────────
+class _MessagesPane(QWidget):
+    """Year/message counter bar + message text area at the bottom of the left panel."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(80)
+
+        top_bar = QFrame()
+        top_bar.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Raised)
+
+        self._filter_check = QCheckBox()
+        self._filter_check.setChecked(True)
+        self._filter_check.setFixedSize(18, 18)
+        self._filter_check.setToolTip("Hide unimportant messages")
+
+        self._year_count_label = QLabel("Year: 2400   Messages: 0 of 0")
+
+        self._prev_btn = QPushButton("Prev")
+        self._prev_btn.setFixedWidth(36)
+        self._goto_btn = QPushButton("Goto")
+        self._goto_btn.setFixedWidth(36)
+        self._next_btn = QPushButton("Next")
+        self._next_btn.setFixedWidth(36)
+
+        bar_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        bar_layout.setContentsMargins(2, 2, 2, 2)
+        bar_layout.setSpacing(2)
+        bar_layout.addWidget(self._filter_check)
+        bar_layout.addWidget(self._year_count_label, 1)
+        bar_layout.addWidget(self._prev_btn)
+        bar_layout.addWidget(self._goto_btn)
+        bar_layout.addWidget(self._next_btn)
+        top_bar.setLayout(bar_layout)
+
+        self._msg_text = QLabel("(No messages)")
+        self._msg_text.setWordWrap(True)
+        self._msg_text.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self._msg_text.setContentsMargins(4, 4, 4, 4)
+        self._msg_text.setStyleSheet("background: black; color: white;")
+
+        main = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        main.setContentsMargins(0, 0, 0, 0)
+        main.setSpacing(0)
+        main.addWidget(top_bar)
+        main.addWidget(self._msg_text, 1)
+        self.setLayout(main)
+
+    def set_year(self, year: int):
+        self._year_count_label.setText(f"Year: {year}   Messages: 0 of 0")
 
 
-class InfoPanel(QWidget):
+# ── Left panel (top-level assembly) ───────────────────────────────────────
+
+
+class LeftPanel(QWidget):
     """
-    Right-side dockable panel.  Call update_planet(planet, player) whenever
-    the selected planet changes.
+    The left-side command panel.
+
+    Two adjacent section columns fill the top area; a messages pane sits below.
+    Call update_planet(planet, player) whenever selection changes.
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        self.setMinimumWidth(180)
-        self.setMaximumWidth(280)
+        self.setMinimumWidth(360)
+        self.setMaximumWidth(520)
 
-        self._image_section = _PlanetImageSection()
-        self._summary_section = _SummarySection()
-        self._minerals_section = _MineralsSection()
-        self._concentration_section = _ConcentrationSection()
-        self._hab_section = _HabSection()
+        # ── Column 1 ──────────────────────────────────────────────────────
+        self._planet_header = _PlanetHeaderSection()
+        self._minerals = _MineralsSection()
+        self._status = _StatusSection()
 
-        self._nothing_label = QLabel("No selection")
-        self._nothing_label.setAlignment(Qt.AlignCenter)
-        self._nothing_label.setStyleSheet("color: gray; font-style: italic;")
+        col1 = QWidget()
+        c1 = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        c1.setContentsMargins(0, 0, 0, 0)
+        c1.setSpacing(0)
+        c1.addWidget(self._planet_header)
+        c1.addWidget(self._minerals)
+        c1.addWidget(self._status)
+        c1.addStretch(1)
+        col1.setLayout(c1)
 
-        # Scrollable container for all sections
-        scroll_content = QWidget()
-        content_layout = QBoxLayout(QBoxLayout.Direction.TopToBottom)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(2)
-        content_layout.addWidget(self._image_section)
-        content_layout.addWidget(self._summary_section)
-        content_layout.addWidget(self._minerals_section)
-        content_layout.addWidget(self._concentration_section)
-        content_layout.addWidget(self._hab_section)
-        content_layout.addStretch(1)
-        scroll_content.setLayout(content_layout)
+        # ── Column 2 ──────────────────────────────────────────────────────
+        self._fleets = _FleetsInOrbitSection()
+        self._production = _ProductionSection()
+        self._route = _RouteSection()
+        self._starbase = _StarbaseSection()
 
-        self._scroll = QScrollArea()
-        self._scroll.setWidgetResizable(True)
-        self._scroll.setWidget(scroll_content)
-        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        col2 = QWidget()
+        c2 = QBoxLayout(QBoxLayout.Direction.TopToBottom)
+        c2.setContentsMargins(0, 0, 0, 0)
+        c2.setSpacing(0)
+        c2.addWidget(self._fleets)
+        c2.addWidget(self._production)
+        c2.addWidget(self._route)
+        c2.addWidget(self._starbase)
+        c2.addStretch(1)
+        col2.setLayout(c2)
+
+        # ── Two-column row ─────────────────────────────────────────────────
+        columns = QWidget()
+        cols = QBoxLayout(QBoxLayout.Direction.LeftToRight)
+        cols.setContentsMargins(0, 0, 0, 0)
+        cols.setSpacing(0)
+        cols.addWidget(col1)
+        cols.addWidget(col2)
+        columns.setLayout(cols)
+
+        # ── Messages pane ──────────────────────────────────────────────────
+        self._messages = _MessagesPane()
+
+        # ── Vertical splitter: columns (top) / messages (bottom) ───────────
+        self._splitter = QSplitter(Qt.Vertical)
+        self._splitter.addWidget(columns)
+        self._splitter.addWidget(self._messages)
+        self._splitter.setStretchFactor(0, 3)
+        self._splitter.setStretchFactor(1, 1)
 
         main = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         main.setContentsMargins(0, 0, 0, 0)
-        main.addWidget(self._nothing_label)
-        main.addWidget(self._scroll)
+        main.addWidget(self._splitter)
         self.setLayout(main)
 
-        self._scroll.hide()
-
     def update_planet(self, planet, player=None):
-        self._nothing_label.hide()
-        self._scroll.show()
-        self._image_section.update_planet(planet)
-        self._summary_section.update_planet(planet)
-        self._minerals_section.update_planet(planet, player)
-        self._concentration_section.update_planet(planet)
-        self._hab_section.update_planet(planet)
+        self._planet_header.update_planet(planet)
+        self._minerals.update_planet(planet, player)
+        self._status.update_planet(planet, player)
 
-    def clear(self):
-        self._scroll.hide()
-        self._nothing_label.show()
+    def set_year(self, year: int):
+        self._messages.set_year(year)
+
+
+# ── Back-compat alias ──────────────────────────────────────────────────────
+InfoPanel = LeftPanel

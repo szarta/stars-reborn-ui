@@ -1,0 +1,1161 @@
+{
+  "year": 2400,
+  "game_id": "1f22fcfd-27ca-4b04-a826-b57c16f8d7e2",
+  "game_name": "A Barefoot JayWalk",
+  "player_id": 0,
+  "homeworld_id": 1,
+  "planets": [
+    {
+      "id": 1,
+      "name": "Shangri-La",
+      "x": 584,
+      "y": 644,
+      "homeworld": true,
+      "owner": 0,
+      "population": 25000
+    },
+    {
+      "id": 2,
+      "name": "Clay",
+      "x": 554,
+      "y": 515,
+      "homeworld": true,
+      "owner": 1,
+      "population": 25000
+    },
+    {
+      "id": 3,
+      "name": "Outie",
+      "x": 284,
+      "y": 760,
+      "homeworld": true,
+      "owner": 2,
+      "population": 25000
+    },
+    {
+      "id": 4,
+      "name": "Gunk",
+      "x": 300,
+      "y": 344,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 5,
+      "name": "Panacea",
+      "x": 118,
+      "y": 63,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 6,
+      "name": "Rye",
+      "x": 125,
+      "y": 601,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 7,
+      "name": "Buttercup",
+      "x": 684,
+      "y": 492,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 8,
+      "name": "Waco",
+      "x": 627,
+      "y": 456,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 9,
+      "name": "Mobius",
+      "x": 136,
+      "y": 339,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 10,
+      "name": "Moltke",
+      "x": 184,
+      "y": 571,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 11,
+      "name": "Gollum",
+      "x": 445,
+      "y": 437,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 12,
+      "name": "Homogeneous",
+      "x": 410,
+      "y": 37,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 13,
+      "name": "Foch",
+      "x": 248,
+      "y": 242,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 14,
+      "name": "Shrine",
+      "x": 472,
+      "y": 714,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 15,
+      "name": "Mu",
+      "x": 97,
+      "y": 377,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 16,
+      "name": "Skidmark",
+      "x": 271,
+      "y": 568,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 17,
+      "name": "Daily",
+      "x": 524,
+      "y": 104,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 18,
+      "name": "Hoze-O-Rama",
+      "x": 53,
+      "y": 317,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 19,
+      "name": "Dalmatian",
+      "x": 264,
+      "y": 401,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 20,
+      "name": "Winken",
+      "x": 441,
+      "y": 237,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 21,
+      "name": "Talking Desert",
+      "x": 509,
+      "y": 441,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 22,
+      "name": "Data",
+      "x": 182,
+      "y": 746,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 23,
+      "name": "Atropos",
+      "x": 481,
+      "y": 240,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 24,
+      "name": "Dipstick",
+      "x": 686,
+      "y": 544,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 25,
+      "name": "Ziggurat",
+      "x": 774,
+      "y": 286,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 26,
+      "name": "Erasmus",
+      "x": 705,
+      "y": 329,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 27,
+      "name": "Emerald",
+      "x": 591,
+      "y": 222,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 28,
+      "name": "Gaye",
+      "x": 104,
+      "y": 292,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 29,
+      "name": "Johnson",
+      "x": 207,
+      "y": 708,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 30,
+      "name": "Kaa",
+      "x": 158,
+      "y": 249,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 31,
+      "name": "Cochise",
+      "x": 531,
+      "y": 181,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 32,
+      "name": "Allegro",
+      "x": 734,
+      "y": 128,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 33,
+      "name": "Gasp",
+      "x": 664,
+      "y": 722,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 34,
+      "name": "Devon IV",
+      "x": 197,
+      "y": 732,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 35,
+      "name": "June",
+      "x": 539,
+      "y": 619,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 36,
+      "name": "Last Chance",
+      "x": 96,
+      "y": 472,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 37,
+      "name": "LGM 2",
+      "x": 323,
+      "y": 235,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 38,
+      "name": "Bones",
+      "x": 565,
+      "y": 162,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 39,
+      "name": "Luscious",
+      "x": 730,
+      "y": 601,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 40,
+      "name": "Mallard",
+      "x": 464,
+      "y": 559,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 41,
+      "name": "Core",
+      "x": 234,
+      "y": 414,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 42,
+      "name": "Veritas",
+      "x": 394,
+      "y": 320,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 43,
+      "name": "Rommel",
+      "x": 620,
+      "y": 295,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 44,
+      "name": "Sutra",
+      "x": 168,
+      "y": 662,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 45,
+      "name": "Planet 10",
+      "x": 64,
+      "y": 555,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 46,
+      "name": "Dark Planet",
+      "x": 629,
+      "y": 357,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 47,
+      "name": "Love",
+      "x": 328,
+      "y": 182,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 48,
+      "name": "Pirate",
+      "x": 164,
+      "y": 198,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 49,
+      "name": "Zippy",
+      "x": 555,
+      "y": 645,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 50,
+      "name": "Orange",
+      "x": 332,
+      "y": 752,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 51,
+      "name": "Foggy Bottom",
+      "x": 86,
+      "y": 662,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 52,
+      "name": "Hoof And Mouth",
+      "x": 709,
+      "y": 571,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 53,
+      "name": "Abrams",
+      "x": 149,
+      "y": 448,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 54,
+      "name": "Gordon",
+      "x": 589,
+      "y": 360,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 55,
+      "name": "Stellar",
+      "x": 539,
+      "y": 773,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 56,
+      "name": "Sphairos",
+      "x": 157,
+      "y": 105,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 57,
+      "name": "LGM 1",
+      "x": 245,
+      "y": 335,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 58,
+      "name": "Radish",
+      "x": 432,
+      "y": 289,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 59,
+      "name": "Stilwell",
+      "x": 288,
+      "y": 297,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 60,
+      "name": "Gladsheim",
+      "x": 454,
+      "y": 168,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 61,
+      "name": "Red Storm",
+      "x": 640,
+      "y": 257,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 62,
+      "name": "Hard Ball",
+      "x": 124,
+      "y": 629,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 63,
+      "name": "Twelfth Man",
+      "x": 604,
+      "y": 732,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 64,
+      "name": "Sphere",
+      "x": 629,
+      "y": 493,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 65,
+      "name": "Zarquon",
+      "x": 133,
+      "y": 478,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 66,
+      "name": "H2O",
+      "x": 485,
+      "y": 62,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 67,
+      "name": "Chennault",
+      "x": 613,
+      "y": 36,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 68,
+      "name": "Celt",
+      "x": 373,
+      "y": 660,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 69,
+      "name": "Clotho",
+      "x": 770,
+      "y": 313,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 70,
+      "name": "Basket Case",
+      "x": 446,
+      "y": 24,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 71,
+      "name": "Moe",
+      "x": 691,
+      "y": 217,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 72,
+      "name": "Jubitz",
+      "x": 282,
+      "y": 446,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 73,
+      "name": "Ultima Thule",
+      "x": 201,
+      "y": 56,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 74,
+      "name": "Gates",
+      "x": 301,
+      "y": 543,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 75,
+      "name": "Dinky",
+      "x": 373,
+      "y": 743,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 76,
+      "name": "Dachshund",
+      "x": 216,
+      "y": 590,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 77,
+      "name": "Zero",
+      "x": 439,
+      "y": 478,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 78,
+      "name": "Old",
+      "x": 580,
+      "y": 547,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 79,
+      "name": "Copper",
+      "x": 525,
+      "y": 454,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 80,
+      "name": "Eisenhower",
+      "x": 366,
+      "y": 520,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 81,
+      "name": "Carter",
+      "x": 71,
+      "y": 759,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 82,
+      "name": "McBride",
+      "x": 594,
+      "y": 423,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 83,
+      "name": "Helium",
+      "x": 648,
+      "y": 633,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 84,
+      "name": "Cetus",
+      "x": 87,
+      "y": 189,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 85,
+      "name": "Nada",
+      "x": 338,
+      "y": 472,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 86,
+      "name": "Braddock",
+      "x": 375,
+      "y": 426,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 87,
+      "name": "Sed",
+      "x": 625,
+      "y": 586,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 88,
+      "name": "Kosciusko",
+      "x": 297,
+      "y": 621,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 89,
+      "name": "Barry",
+      "x": 126,
+      "y": 185,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 90,
+      "name": "New",
+      "x": 616,
+      "y": 111,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 91,
+      "name": "Andromeda",
+      "x": 171,
+      "y": 132,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 92,
+      "name": "Snack",
+      "x": 59,
+      "y": 714,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 93,
+      "name": "Arafat",
+      "x": 288,
+      "y": 476,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 94,
+      "name": "Grendel",
+      "x": 645,
+      "y": 417,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 95,
+      "name": "Prune",
+      "x": 161,
+      "y": 690,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 96,
+      "name": "Pisces",
+      "x": 483,
+      "y": 742,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 97,
+      "name": "Rake",
+      "x": 104,
+      "y": 576,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 98,
+      "name": "Black Hole",
+      "x": 658,
+      "y": 337,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 99,
+      "name": "Little Brother",
+      "x": 227,
+      "y": 653,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 100,
+      "name": "Putty",
+      "x": 398,
+      "y": 370,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 101,
+      "name": "Hydroplane",
+      "x": 697,
+      "y": 715,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 102,
+      "name": "Equuleus",
+      "x": 554,
+      "y": 752,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 103,
+      "name": "Captain Jack",
+      "x": 496,
+      "y": 344,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 104,
+      "name": "Daisy",
+      "x": 67,
+      "y": 645,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 105,
+      "name": "Sea Squared",
+      "x": 525,
+      "y": 757,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 106,
+      "name": "Terrace",
+      "x": 743,
+      "y": 762,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 107,
+      "name": "Scorpius",
+      "x": 179,
+      "y": 262,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 108,
+      "name": "Ursa Major",
+      "x": 268,
+      "y": 364,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 109,
+      "name": "Albemuth",
+      "x": 324,
+      "y": 688,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 110,
+      "name": "Kernel",
+      "x": 341,
+      "y": 706,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 111,
+      "name": "A'po",
+      "x": 155,
+      "y": 543,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 112,
+      "name": "Angst",
+      "x": 128,
+      "y": 702,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 113,
+      "name": "Armstrong",
+      "x": 561,
+      "y": 487,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 114,
+      "name": "Amontillado",
+      "x": 222,
+      "y": 156,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 115,
+      "name": "Beauregard",
+      "x": 475,
+      "y": 292,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 116,
+      "name": "Dingly Dell",
+      "x": 24,
+      "y": 143,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 117,
+      "name": "Narnia",
+      "x": 272,
+      "y": 50,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 118,
+      "name": "Quick Lick",
+      "x": 412,
+      "y": 243,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 119,
+      "name": "Epsilon",
+      "x": 126,
+      "y": 219,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 120,
+      "name": "Pop",
+      "x": 303,
+      "y": 596,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 121,
+      "name": "Candide",
+      "x": 269,
+      "y": 215,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 122,
+      "name": "Vivaldi",
+      "x": 728,
+      "y": 401,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 123,
+      "name": "Raster",
+      "x": 176,
+      "y": 725,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 124,
+      "name": "Patton",
+      "x": 609,
+      "y": 779,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 125,
+      "name": "Iceball",
+      "x": 449,
+      "y": 196,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 126,
+      "name": "Ollie",
+      "x": 137,
+      "y": 379,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 127,
+      "name": "Scurvy",
+      "x": 552,
+      "y": 78,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    },
+    {
+      "id": 128,
+      "name": "Peat Moss",
+      "x": 715,
+      "y": 109,
+      "homeworld": false,
+      "owner": null,
+      "population": 0
+    }
+  ]
+}

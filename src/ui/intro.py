@@ -4,7 +4,7 @@ ui/intro.py
 Entry screen — first thing the user sees.
 
 Buttons:
-  New Game     → new game setup wizard (HTTP: POST /game/new)
+  New Game     → new game setup wizard (HTTP: POST /games)
   Load Game    → load an existing saved game
   Host Game    → host/admin view for a multiplayer game
   Race Editor  → standalone race design tool
@@ -15,6 +15,7 @@ Buttons:
 :license: MIT, see LICENSE.txt for more details.
 """
 
+import json
 import logging
 import os
 
@@ -22,12 +23,29 @@ import requests
 from PySide6.QtGui import QBrush, QPalette, QPixmap
 from PySide6.QtWidgets import QBoxLayout, QDialog, QFileDialog, QMessageBox, QPushButton
 
-from ..data.defaults import build_new_game_request
+from ..data.defaults import PlanetData, build_new_game_request
 from ..data.loader import Language_Map
 from ..data.r1_parser import load_race_file, save_race_json
 from ..rendering.enumerations import ResourcePaths
 
 log = logging.getLogger(__name__)
+
+
+def _save_game_files(save_dir: str, safe_name: str, xy: dict, turn: dict) -> None:
+    """Write the two canonical game files for a newly created game.
+
+    {safe_name}.xy.json  — universe file fetched from GET /games/{id}
+    {safe_name}.m1.json  — player turn file fetched from GET /games/{id}/turns/{year}/players/0
+    """
+    xy_path = os.path.join(save_dir, f"{safe_name}.xy.json")
+    m1_path = os.path.join(save_dir, f"{safe_name}.m1.json")
+
+    with open(xy_path, "w", encoding="utf-8") as f:
+        json.dump(xy, f, indent=2)
+    with open(m1_path, "w", encoding="utf-8") as f:
+        json.dump(turn, f, indent=2)
+
+    log.info("Saved %s and %s", xy_path, m1_path)
 
 
 class IntroUI(QDialog):
@@ -42,8 +60,8 @@ class IntroUI(QDialog):
         ui = Language_Map.get("ui", {})
         gen = ui.get("general", {})
 
-        self.new_game_button = QPushButton(gen.get("new-game", "&New Game"))
-        self.load_game_button = QPushButton(gen.get("load-game", "&Load Game"))
+        self.new_game_button = QPushButton(gen.get("new-local-game", "New &Local Game"))
+        self.load_game_button = QPushButton(gen.get("load-local-game", "Load &Local Game"))
         self.host_game_button = QPushButton(gen.get("host-game", "&Host Game"))
         self.create_race_button = QPushButton(gen.get("create-race", "&Create Race"))
         self.open_race_button = QPushButton(gen.get("open-race", "&Open Race"))
@@ -51,8 +69,8 @@ class IntroUI(QDialog):
         self.exit_button = QPushButton(gen.get("exit", "E&xit"))
 
     def _bind_user_controls(self):
-        self.new_game_button.clicked.connect(self._new_game_handler)
-        self.load_game_button.clicked.connect(self._load_game_handler)
+        self.new_game_button.clicked.connect(self._new_local_game_handler)
+        self.load_game_button.clicked.connect(self._load_local_game_handler)
         self.host_game_button.clicked.connect(self._host_game_handler)
         self.create_race_button.clicked.connect(self._create_race_handler)
         self.open_race_button.clicked.connect(self._open_race_handler)
@@ -100,7 +118,7 @@ class IntroUI(QDialog):
     # Handlers
     # ------------------------------------------------------------------
 
-    def _new_game_handler(self):
+    def _new_local_game_handler(self):
         from .dialogs.new_game import NewGameDialog
 
         dlg = NewGameDialog(self)
@@ -108,17 +126,6 @@ class IntroUI(QDialog):
             return
 
         settings = dlg.game_settings()
-
-        save_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "New Game",
-            "Game.xy.json",
-            "Stars! Game Files (*.xy.json)",
-        )
-        if not save_path:
-            return
-
-        save_dir = os.path.dirname(save_path)
 
         payload = build_new_game_request(
             universe_size=settings["universe"]["size"],
@@ -128,7 +135,7 @@ class IntroUI(QDialog):
 
         try:
             resp = requests.post(
-                f"{self._engine_url}/game/new",
+                f"{self._engine_url}/games",
                 json=payload,
                 timeout=30,
             )
@@ -154,17 +161,139 @@ class IntroUI(QDialog):
             QMessageBox.critical(self, "New Game Failed", str(exc))
             return
 
-        # TODO: write returned game files to save_dir, then open turn editor.
-        log.info("New game created at %s, save dir: %s", self._engine_url, save_dir)
-        QMessageBox.information(
-            self,
-            "New Game",
-            f"Game created.\n\nFiles will be written to:\n{save_dir}",
-        )
+        body = resp.json()
+        game_id = body["created-game"]["id"]
+        log.info("Game created: id=%s", game_id)
 
-    def _load_game_handler(self):
-        # TODO: open file picker for a game folder / remote host address.
-        QMessageBox.information(self, "Load Game", "Load game — coming soon.")
+        # Fetch both files the client needs: universe (.xy) and player turn (.m1)
+        try:
+            xy_resp = requests.get(
+                f"{self._engine_url}/games/{game_id}",
+                timeout=30,
+            )
+            xy_resp.raise_for_status()
+            turn_resp = requests.get(
+                f"{self._engine_url}/games/{game_id}/turns/2400/players/0",
+                timeout=30,
+            )
+            turn_resp.raise_for_status()
+        except requests.exceptions.RequestException as exc:
+            log.error("Failed to fetch game files: %s", exc)
+            QMessageBox.critical(self, "New Game Failed", f"Could not load game files:\n{exc}")
+            return
+
+        xy = xy_resp.json()
+        turn = turn_resp.json()
+
+        # --- Save game files ---
+        game_name = xy["game_name"]
+        safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in game_name)
+
+        save_dir = QFileDialog.getExistingDirectory(
+            self,
+            f'Choose folder to save game files for "{game_name}"',
+            "",
+            QFileDialog.Option.ShowDirsOnly,
+        )
+        if save_dir:
+            try:
+                _save_game_files(save_dir, safe_name, xy, turn)
+            except Exception as exc:
+                log.error("Failed to save game files: %s", exc)
+                QMessageBox.warning(
+                    self,
+                    "Save Warning",
+                    f"Game was created but files could not be saved:\n{exc}",
+                )
+
+        # Build planet list from the turn file (player's fog-of-war view).
+        # Positions come from the turn file; the xy file is saved as-is for the engine to serve.
+        planets = [
+            PlanetData(
+                id=p["id"],
+                name=p["name"],
+                x=float(p["x"]),
+                y=float(p["y"]),
+                homeworld=p.get("homeworld", False),
+                owner=p.get("owner"),
+                population=p.get("population", 0),
+            )
+            for p in turn["planets"]
+        ]
+
+        from .main_window import MainWindow
+
+        self._main_window = MainWindow(
+            planets=planets,
+            universe_w=float(xy["universe_width"]),
+            universe_h=float(xy["universe_height"]),
+            player_id=turn["player_id"],
+            game_year=turn["year"],
+            game_name=game_name,
+        )
+        self._main_window.show()
+        self.hide()
+
+    def _load_local_game_handler(self):
+        """Open a saved .m1.json turn file and launch the turn editor."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Local Game — Open Turn File",
+            "",
+            "Stars Reborn Turn Files (*.m1.json *.m*.json);;All Files (*)",
+        )
+        if not path:
+            return
+
+        try:
+            with open(path, encoding="utf-8") as f:
+                turn = json.load(f)
+        except Exception as exc:
+            log.error("Failed to read turn file %s: %s", path, exc)
+            QMessageBox.critical(self, "Load Failed", f"Could not read turn file:\n{exc}")
+            return
+
+        # Look for the companion .xy.json in the same directory
+        game_name = turn.get("game_name", "Game")
+        safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in game_name)
+        game_dir = os.path.dirname(path)
+        xy_path = os.path.join(game_dir, f"{safe_name}.xy.json")
+
+        universe_w, universe_h = 800.0, 800.0
+        if os.path.exists(xy_path):
+            try:
+                with open(xy_path, encoding="utf-8") as f:
+                    xy = json.load(f)
+                universe_w = float(xy.get("universe_width", 800))
+                universe_h = float(xy.get("universe_height", 800))
+            except Exception as exc:
+                log.warning("Could not read %s: %s", xy_path, exc)
+
+        planets = [
+            PlanetData(
+                id=p["id"],
+                name=p["name"],
+                x=float(p["x"]),
+                y=float(p["y"]),
+                homeworld=p.get("homeworld", False),
+                owner=p.get("owner"),
+                population=p.get("population", 0),
+            )
+            for p in turn.get("planets", [])
+        ]
+
+        from .main_window import MainWindow
+
+        self._main_window = MainWindow(
+            planets=planets,
+            universe_w=universe_w,
+            universe_h=universe_h,
+            player_id=turn.get("player_id", 0),
+            game_year=turn.get("year", 2400),
+            game_name=game_name,
+        )
+        self._main_window.show()
+        self.hide()
 
     def _host_game_handler(self):
         # TODO: open host admin view (submission status, skip player, trigger generation).

@@ -8,6 +8,25 @@ The Advanced Game path lets the player override any of these.
 See stars-reborn-research/docs/findings/new_game_defaults.rst.
 """
 
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass
+class PlanetData:
+    """Duck-typed planet object understood by SpaceMap and InfoPanel."""
+
+    id: int
+    name: str
+    x: float
+    y: float
+    homeworld: bool = False
+    owner: int | None = None
+    population: int = 0
+    years_since: int = 0  # 0 = seen this turn; -1 = never seen
+
+
 # Default game name keyed on (difficulty, universe_size).
 # This is a fixed lookup table in the original — NOT randomly generated.
 # Confirmed: all Easy entries; Standard/Small.
@@ -44,18 +63,6 @@ def default_game_name(difficulty: str, universe_size: str) -> str:
     Falls back to 'New Game' for combinations not yet confirmed."""
     return GAME_NAME_TABLE.get((difficulty, universe_size), _GAME_NAME_FALLBACK)
 
-
-# Display name used for each predefined race when creating a human player slot.
-# Confirmed for Humanoid ("The Humanoids"); others assumed by same pattern.
-# TODO: confirm all 6 races, especially Antetheral pluralisation.
-RACE_DISPLAY_NAMES: dict[str, str] = {
-    "Humanoid": "The Humanoids",
-    "Rabbitoid": "The Rabbitoids",
-    "Insectoid": "The Insectoids",
-    "Nucleotid": "The Nucleotids",
-    "Silcanoid": "The Silcanoids",
-    "Antetheral": "The Antheherals",
-}
 
 # Default game flags — all false for the Standard path.
 DEFAULT_GAME_FLAGS: dict[str, bool] = {
@@ -101,7 +108,6 @@ def build_new_game_request(
     confirmed difficulty × size table.
     """
     game_name = default_game_name(difficulty, universe_size)
-    display_name = RACE_DISPLAY_NAMES.get(race_name, race_name)
 
     return {
         "game": {
@@ -109,7 +115,6 @@ def build_new_game_request(
             "human-players": [
                 {
                     "id": 0,
-                    "name": display_name,
                     "race": race_name,
                 }
             ],
