@@ -381,17 +381,6 @@ class IntroUI(QDialog):
         if not save_path:
             return
 
-        if os.path.exists(save_path):
-            resp = QMessageBox.question(
-                self,
-                "Overwrite Existing File?",
-                f"Do you really want to overwrite the existing file?\n\n{save_path}",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if resp != QMessageBox.StandardButton.Yes:
-                return
-
         try:
             save_race_json(save_path, dlg.race_dict())
         except Exception as exc:

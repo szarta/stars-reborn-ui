@@ -23,11 +23,12 @@ Fails gracefully when the engine is unreachable.
 
 import copy
 import logging
+import os
 import random as _random
 
 import requests
 from PySide6.QtCore import QRect, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QBoxLayout,
     QButtonGroup,
@@ -53,6 +54,7 @@ from ...data.r1_parser import (
     grav_idx_to_g,
     temp_idx_to_c,
 )
+from ...rendering.enumerations import ResourcePaths
 
 log = logging.getLogger(__name__)
 
@@ -167,6 +169,41 @@ TEMPLATE_NAMES: list[str] = [
     "Nucleotid",  # 6  col 0 row 3
     "Custom",  # 7  col 1 row 3
 ]
+
+# ---------------------------------------------------------------------------
+# Race icons — map icon_index (0..31) → asset path
+# ---------------------------------------------------------------------------
+
+RACE_ICON_COUNT = 32
+
+
+def _build_race_icon_map() -> dict[int, str]:
+    """Scan the race_icons asset folder once and map index → path.
+
+    Files are named 'race_NN_<label>.png' where NN is 1-based. icon_index is
+    0-based, so icon_index = NN - 1.
+    """
+    result: dict[int, str] = {}
+    folder = ResourcePaths.RaceIconsPath
+    if not os.path.isdir(folder):
+        return result
+    for fname in os.listdir(folder):
+        if not fname.startswith("race_") or not fname.endswith(".png"):
+            continue
+        try:
+            nn = int(fname.split("_", 2)[1])
+        except (IndexError, ValueError):
+            continue
+        result[nn - 1] = os.path.join(folder, fname)
+    return result
+
+
+_RACE_ICON_PATHS: dict[int, str] = _build_race_icon_map()
+
+
+def race_icon_path(icon_index: int) -> str | None:
+    return _RACE_ICON_PATHS.get(icon_index % RACE_ICON_COUNT)
+
 
 # ---------------------------------------------------------------------------
 # Default / predefined races
@@ -1180,7 +1217,7 @@ class RaceWizard(QDialog):
             r = self._race
             self._name_edit.setText(r.get("name", ""))
             self._plural_name_edit.setText(r.get("plural_name", ""))
-            self._icon_idx_lbl.setText(str(r.get("icon_index", 0)))
+            self._refresh_icon_display()
 
             # Template selection — highlight the button whose name matches this race
             race_name = r.get("name", "")
@@ -1268,14 +1305,35 @@ class RaceWizard(QDialog):
         self._race["plural_name"] = text
 
     def _on_icon_prev(self):
-        idx = (self._race.get("icon_index", 0) - 1) % 32
+        idx = (self._race.get("icon_index", 0) - 1) % RACE_ICON_COUNT
         self._race["icon_index"] = idx
-        self._icon_idx_lbl.setText(str(idx))
+        self._refresh_icon_display()
 
     def _on_icon_next(self):
-        idx = (self._race.get("icon_index", 0) + 1) % 32
+        idx = (self._race.get("icon_index", 0) + 1) % RACE_ICON_COUNT
         self._race["icon_index"] = idx
+        self._refresh_icon_display()
+
+    def _refresh_icon_display(self):
+        idx = self._race.get("icon_index", 0) % RACE_ICON_COUNT
+        path = race_icon_path(idx)
+        if path:
+            pm = QPixmap(path)
+            if not pm.isNull():
+                size = self._icon_idx_lbl.size()
+                self._icon_idx_lbl.setPixmap(
+                    pm.scaled(
+                        size,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+                self._icon_idx_lbl.setToolTip(f"Icon {idx}")
+                return
+        # Fallback: show the index as text if the asset is missing
+        self._icon_idx_lbl.setPixmap(QPixmap())
         self._icon_idx_lbl.setText(str(idx))
+        self._icon_idx_lbl.setToolTip("")
 
     def _on_template_selected(self, btn_id: int):
         if self._loading:
