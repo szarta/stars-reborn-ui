@@ -204,7 +204,7 @@ def _default_race() -> dict:
             "construction": "normal",
             "electronics": "normal",
             "biotechnology": "normal",
-            "expensive_tech_start_at_3": False,
+            "expensive_tech_boost": False,
         },
         "leftover_spend": "surface_minerals",
         "icon_index": 0,
@@ -231,6 +231,7 @@ PREDEFINED_RACES: dict[str, dict] = {
             "resource_production": 700,
             "factory_production": 11,
             "colonists_operate_factories": 18,
+            "mine_cost": 10,
         },
         "research_costs": {
             "energy": "cheap",
@@ -239,7 +240,7 @@ PREDEFINED_RACES: dict[str, dict] = {
             "construction": "cheap",
             "electronics": "cheap",
             "biotechnology": "cheap",
-            "expensive_tech_start_at_3": False,
+            "expensive_tech_boost": False,
         },
         "icon_index": 17,
     },
@@ -257,7 +258,9 @@ PREDEFINED_RACES: dict[str, dict] = {
         "economy": {
             **_default_race()["economy"],
             "mine_production": 9,
+            "mine_cost": 10,
             "colonists_operate_mines": 6,
+            "growth_rate": 10,
         },
         "research_costs": {
             "energy": "cheap",
@@ -266,7 +269,7 @@ PREDEFINED_RACES: dict[str, dict] = {
             "construction": "cheap",
             "electronics": "normal",
             "biotechnology": "expensive",
-            "expensive_tech_start_at_3": False,
+            "expensive_tech_boost": False,
         },
         "leftover_spend": "mineral_concentrations",
         "icon_index": 3,
@@ -287,6 +290,7 @@ PREDEFINED_RACES: dict[str, dict] = {
             "resource_production": 900,
             "mine_cost": 15,
             "colonists_operate_mines": 5,
+            "growth_rate": 10,
         },
         "research_costs": {
             "energy": "expensive",
@@ -295,7 +299,7 @@ PREDEFINED_RACES: dict[str, dict] = {
             "construction": "expensive",
             "electronics": "expensive",
             "biotechnology": "expensive",
-            "expensive_tech_start_at_3": True,
+            "expensive_tech_boost": True,
         },
         "leftover_spend": "factories",
         "icon_index": 24,
@@ -307,7 +311,13 @@ PREDEFINED_RACES: dict[str, dict] = {
         "prt": "IT",
         "lrts": ["IFE", "TT", "CE", "NAS"],
         "hab": {
-            "gravity": {"immune": False, "min": grav_idx_to_g(10), "max": grav_idx_to_g(56)},
+            "gravity": {
+                "immune": False,
+                "min": grav_idx_to_g(10),
+                "max": grav_idx_to_g(56),
+                "min_idx": 10,
+                "max_idx": 56,
+            },
             "temperature": {"immune": False, "min": temp_idx_to_c(35), "max": temp_idx_to_c(81)},
             "radiation": {"immune": False, "min": 13.0, "max": 53.0},
         },
@@ -329,7 +339,7 @@ PREDEFINED_RACES: dict[str, dict] = {
             "construction": "normal",
             "electronics": "normal",
             "biotechnology": "cheap",
-            "expensive_tech_start_at_3": False,
+            "expensive_tech_boost": False,
         },
         "leftover_spend": "defenses",
         "icon_index": 11,
@@ -349,7 +359,7 @@ PREDEFINED_RACES: dict[str, dict] = {
             "resource_production": 800,
             "factory_production": 12,
             "factory_cost": 12,
-            "factory_cheap_germanium": True,
+            "factory_cheap_germanium": False,
             "colonists_operate_factories": 15,
             "mine_production": 10,
             "mine_cost": 9,
@@ -363,7 +373,7 @@ PREDEFINED_RACES: dict[str, dict] = {
             "construction": "cheap",
             "electronics": "normal",
             "biotechnology": "expensive",
-            "expensive_tech_start_at_3": False,
+            "expensive_tech_boost": False,
         },
         "leftover_spend": "factories",
         "icon_index": 4,
@@ -376,11 +386,22 @@ PREDEFINED_RACES: dict[str, dict] = {
 
 
 def _race_hab_to_idx(hab: dict) -> dict:
-    """Convert a race hab dict (physical units) to index-based representation."""
+    """Convert a race hab dict (physical units) to index-based representation.
+
+    Prefers axis.min_idx/max_idx when present (authoritative .r1 raw indices)
+    over physical→index conversion — gravity has collisions (e.g. 0.17 g maps
+    to either index 9 or 10) that would otherwise be lost on round-trip.
+    """
 
     def axis_to_idx(axis, to_idx_fn):
         if axis.get("immune"):
             return {"immune": True, "min_idx": 50, "max_idx": 50}
+        if "min_idx" in axis and "max_idx" in axis:
+            return {
+                "immune": False,
+                "min_idx": int(axis["min_idx"]),
+                "max_idx": int(axis["max_idx"]),
+            }
         return {
             "immune": False,
             "min_idx": to_idx_fn(axis.get("min", 0)),
@@ -397,7 +418,11 @@ def _race_hab_to_idx(hab: dict) -> dict:
 
 
 def _idx_hab_to_race(idx_hab: dict) -> dict:
-    """Convert index-based hab representation back to a race hab dict (physical units)."""
+    """Convert index-based hab representation back to a race hab dict (physical units).
+
+    Emits min_idx/max_idx alongside min/max so the engine bypasses the lossy
+    physical→index round-trip (e.g. gravity index 9 and 10 both decode to 0.17 g).
+    """
 
     def idx_to_axis(axis, to_phys_fn):
         if axis.get("immune"):
@@ -406,6 +431,8 @@ def _idx_hab_to_race(idx_hab: dict) -> dict:
             "immune": False,
             "min": to_phys_fn(axis["min_idx"]),
             "max": to_phys_fn(axis["max_idx"]),
+            "min_idx": axis["min_idx"],
+            "max_idx": axis["max_idx"],
         }
 
     return {
@@ -740,6 +767,7 @@ class RaceWizard(QDialog):
 
     Pass race=None for a new race (starts with Humanoid defaults).
     Pass race=<dict> to edit an existing race loaded from a .r1 or .r1.json file.
+    Pass read_only=True to show the race without the ability to modify it.
     """
 
     _HELP_BTN = 0
@@ -749,13 +777,18 @@ class RaceWizard(QDialog):
     _FINISH_BTN = 4
 
     def __init__(
-        self, parent=None, race: dict | None = None, engine_url: str = "http://localhost:2001"
+        self,
+        parent=None,
+        race: dict | None = None,
+        engine_url: str = "http://localhost:2001",
+        read_only: bool = False,
     ):
         super().__init__(parent)
         self._engine_url = engine_url.rstrip("/")
         self._race = copy.deepcopy(race) if race else _default_race()
         self._hab_idx = _race_hab_to_idx(self._race["hab"])
         self._loading = False
+        self._read_only = read_only
 
         self._val_timer = QTimer(self)
         self._val_timer.setSingleShot(True)
@@ -766,6 +799,8 @@ class RaceWizard(QDialog):
         self._init_ui()
         self._load_race_into_controls()
         self._schedule_validation()
+        if self._read_only:
+            self._apply_read_only()
 
     # ------------------------------------------------------------------
     # Control creation
@@ -889,7 +924,7 @@ class RaceWizard(QDialog):
                 rb = QRadioButton(label)
                 bg.addButton(rb, j)
             self._tech_groups[field.lower()] = bg
-        self._exp_tech = QCheckBox("All 'Costs 75% extra' research fields start at Tech 4")
+        self._exp_tech = QCheckBox()  # label set by _update_exp_tech_label() based on PRT
 
         # ── Nav buttons ───────────────────────────────────────────────
         self._nav = QButtonGroup(self)
@@ -902,7 +937,7 @@ class RaceWizard(QDialog):
     # ------------------------------------------------------------------
 
     def _init_ui(self):
-        self.setWindowTitle("Edit Race")
+        self.setWindowTitle("View Race" if self._read_only else "Edit Race")
         self.setMinimumSize(600, 540)
 
         self._stack = QStackedLayout()
@@ -1131,7 +1166,7 @@ class RaceWizard(QDialog):
         for field, bg in self._tech_groups.items():
             bg.idClicked.connect(lambda idx, f=field: self._on_tech_changed(f, TECH_COST_CODE[idx]))
         self._exp_tech.toggled.connect(
-            lambda v: self._on_research_flag_changed("expensive_tech_start_at_3", v)
+            lambda v: self._on_research_flag_changed("expensive_tech_boost", v)
         )
         return page
 
@@ -1210,10 +1245,11 @@ class RaceWizard(QDialog):
                 code = rc.get(key, "normal")
                 idx = TECH_COST_CODE.index(code) if code in TECH_COST_CODE else 1
                 self._tech_groups[key].button(idx).setChecked(True)
-            self._exp_tech.setChecked(rc.get("expensive_tech_start_at_3", False))
+            self._exp_tech.setChecked(rc.get("expensive_tech_boost", False))
         finally:
             self._loading = False
 
+        self._update_exp_tech_label()
         self._update_hab_text()
 
     # ------------------------------------------------------------------
@@ -1265,7 +1301,13 @@ class RaceWizard(QDialog):
             return
         self._race["prt"] = PRT_CODE[btn_id]
         self._prt_desc.setText(PRT_DESC[btn_id])
+        self._update_exp_tech_label()
         self._schedule_validation()
+
+    def _update_exp_tech_label(self):
+        """Expensive Tech Boost starts fields at tech 4 for JOAT, tech 3 for all others."""
+        level = 4 if self._race.get("prt") == "JOAT" else 3
+        self._exp_tech.setText(f"All 'Costs 75% extra' research fields start at Tech {level}")
 
     def _on_lrt_changed(self, btn_id: int):
         if self._loading:
@@ -1370,6 +1412,13 @@ class RaceWizard(QDialog):
         self._nav.button(self._PREV_BTN).setEnabled(idx > 0)
         self._nav.button(self._NEXT_BTN).setEnabled(idx < 5)
         # Finish is always available (matches original game)
+
+    def _apply_read_only(self):
+        """Disable every editable page and convert the dialog into a viewer."""
+        for i in range(self._stack.count()):
+            self._stack.widget(i).setEnabled(False)
+        self._nav.button(self._FINISH_BTN).setVisible(False)
+        self._nav.button(self._CANCEL_BTN).setText("&Close")
 
     def _on_nav(self, btn_id: int):
         cur = self._stack.currentIndex()

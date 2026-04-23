@@ -512,7 +512,7 @@ def parse_r1_payload(p: bytes) -> dict:
         "construction": TECH_COST_BYTE.get(p[73], "normal"),
         "electronics": TECH_COST_BYTE.get(p[74], "normal"),
         "biotechnology": TECH_COST_BYTE.get(p[75], "normal"),
-        "expensive_tech_start_at_3": bool(p[81] & 0x20),
+        "expensive_tech_boost": bool(p[81] & 0x20),
     }
 
     # PRT.

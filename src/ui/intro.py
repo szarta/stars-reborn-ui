@@ -4,12 +4,14 @@ ui/intro.py
 Entry screen — first thing the user sees.
 
 Buttons:
-  New Game     → new game setup wizard (HTTP: POST /games)
-  Load Game    → load an existing saved game
-  Host Game    → host/admin view for a multiplayer game
-  Race Editor  → standalone race design tool
-  About        → credits and version info
-  Exit         → quit
+  New Game         → new game setup wizard (HTTP: POST /games)
+  Load Game        → load an existing saved game
+  Host Game        → host/admin view for a multiplayer game
+  Create New Race  → design a brand-new race from scratch
+  Edit Race        → open an existing race file for editing
+  View Race        → open an existing race file read-only
+  About            → credits and version info
+  Exit             → quit
 
 :author: Brandon Arrendondo
 :license: MIT, see LICENSE.txt for more details.
@@ -63,8 +65,9 @@ class IntroUI(QDialog):
         self.new_game_button = QPushButton(gen.get("new-local-game", "New &Local Game"))
         self.load_game_button = QPushButton(gen.get("load-local-game", "Load &Local Game"))
         self.host_game_button = QPushButton(gen.get("host-game", "&Host Game"))
-        self.create_race_button = QPushButton(gen.get("create-race", "&Create Race"))
-        self.open_race_button = QPushButton(gen.get("open-race", "&Open Race"))
+        self.create_race_button = QPushButton(gen.get("create-new-race", "&Create New Race"))
+        self.edit_race_button = QPushButton(gen.get("edit-race", "&Edit Race"))
+        self.view_race_button = QPushButton(gen.get("view-race", "&View Race"))
         self.about_button = QPushButton(gen.get("about", "&About"))
         self.exit_button = QPushButton(gen.get("exit", "E&xit"))
 
@@ -73,7 +76,8 @@ class IntroUI(QDialog):
         self.load_game_button.clicked.connect(self._load_local_game_handler)
         self.host_game_button.clicked.connect(self._host_game_handler)
         self.create_race_button.clicked.connect(self._create_race_handler)
-        self.open_race_button.clicked.connect(self._open_race_handler)
+        self.edit_race_button.clicked.connect(self._edit_race_handler)
+        self.view_race_button.clicked.connect(self._view_race_handler)
         self.about_button.clicked.connect(self._about_handler)
         self.exit_button.clicked.connect(self.close)
 
@@ -99,7 +103,8 @@ class IntroUI(QDialog):
             self.load_game_button,
             self.host_game_button,
             self.create_race_button,
-            self.open_race_button,
+            self.edit_race_button,
+            self.view_race_button,
             self.about_button,
             self.exit_button,
         ):
@@ -321,15 +326,16 @@ class IntroUI(QDialog):
             log.error("Failed to save race file: %s", exc)
             QMessageBox.critical(self, "Save Failed", str(exc))
 
-    def _open_race_handler(self):
+    def _prompt_load_race(self, title: str) -> tuple[str, dict] | None:
+        """Ask the user for a race file and load it. Returns (path, race) or None."""
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Open Race File",
+            title,
             "",
             "Race Files (*.r1 *.r1.json *.race.json);;All Files (*)",
         )
         if not path:
-            return
+            return None
 
         try:
             race = load_race_file(path)
@@ -340,7 +346,24 @@ class IntroUI(QDialog):
                 "Open Race Failed",
                 f"Could not load race file:\n{path}\n\n{exc}",
             )
+            return None
+
+        return path, race
+
+    def _suggest_save_path(self, source_path: str) -> str:
+        """Turn any race source path into a reasonable .r1.json save target."""
+        if source_path.endswith(".r1.json") or source_path.endswith(".race.json"):
+            return source_path
+        base, _ = os.path.splitext(source_path)
+        if base.endswith(".r1"):
+            base = base[:-3]
+        return f"{base}.r1.json"
+
+    def _edit_race_handler(self):
+        loaded = self._prompt_load_race("Edit Race — Select Race File")
+        if loaded is None:
             return
+        source_path, race = loaded
 
         from .dialogs.race_wizard import RaceWizard
 
@@ -348,20 +371,43 @@ class IntroUI(QDialog):
         if dlg.exec() != RaceWizard.DialogCode.Accepted:
             return
 
+        suggested = self._suggest_save_path(source_path)
         save_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Race File",
-            "",
+            suggested,
             "Stars Reborn Race Files (*.r1.json)",
         )
         if not save_path:
             return
+
+        if os.path.exists(save_path):
+            resp = QMessageBox.question(
+                self,
+                "Overwrite Existing File?",
+                f"Do you really want to overwrite the existing file?\n\n{save_path}",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if resp != QMessageBox.StandardButton.Yes:
+                return
 
         try:
             save_race_json(save_path, dlg.race_dict())
         except Exception as exc:
             log.error("Failed to save race file: %s", exc)
             QMessageBox.critical(self, "Save Failed", str(exc))
+
+    def _view_race_handler(self):
+        loaded = self._prompt_load_race("View Race — Select Race File")
+        if loaded is None:
+            return
+        _, race = loaded
+
+        from .dialogs.race_wizard import RaceWizard
+
+        dlg = RaceWizard(parent=self, race=race, engine_url=self._engine_url, read_only=True)
+        dlg.exec()
 
     def _about_handler(self):
         try:
