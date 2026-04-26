@@ -24,11 +24,13 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QLabel,
     QMainWindow,
+    QMenu,
     QPushButton,
     QSizePolicy,
     QSplitter,
     QStatusBar,
     QToolBar,
+    QToolButton,
     QWidget,
 )
 
@@ -157,10 +159,18 @@ class MainWindow(QMainWindow):
         # File
         file_menu = mb.addMenu("&File")
         file_menu.addAction(self._action("&New...", "Ctrl+N", self._handle_new))
+        file_menu.addAction(
+            self._action("&Custom Race Wizard...", None, self._handle_custom_race_wizard)
+        )
         file_menu.addAction(self._action("&Open...", "Ctrl+O", self._handle_open))
-        file_menu.addAction(self._action("&Save", "Ctrl+S", self._handle_save))
-        file_menu.addSeparator()
         file_menu.addAction(self._action("&Close", None, self._handle_close))
+        file_menu.addAction(self._action("&Save", "Ctrl+S", self._handle_save))
+        file_menu.addAction(
+            self._action("Save &And Submit", "Ctrl+A", self._handle_save_and_submit, enabled=False)
+        )
+        file_menu.addSeparator()
+        file_menu.addAction(self._action("&Print Map", None, self._handle_print_map))
+        file_menu.addSeparator()
         file_menu.addAction(self._action("E&xit", None, self.close))
 
         # View
@@ -185,12 +195,23 @@ class MainWindow(QMainWindow):
             self._zoom_actions.append(a)
         self._zoom_actions[self._view_opts.zoom_level].setChecked(True)
 
+        layout_menu = view_menu.addMenu("&Window Layout")
+        layout_menu.addAction(self._action("&Default", None, self._handle_window_layout_default))
+        layout_menu.addAction(self._action("&Save Layout", None, self._handle_window_layout_save))
+        layout_menu.addAction(
+            self._action("&Restore Layout", None, self._handle_window_layout_restore)
+        )
+
+        view_menu.addAction(self._action("Player &Colors...", None, self._handle_player_colors))
         view_menu.addSeparator()
         view_menu.addAction(self._action("&Race...", "F8", self._handle_race))
         view_menu.addAction(self._action("&Game Parameters...", None, self._handle_game_params))
 
         # Turn
         turn_menu = mb.addMenu("&Turn")
+        turn_menu.addAction(
+            self._action("&Wait for New", None, self._handle_wait_for_new, enabled=False)
+        )
         turn_menu.addAction(self._action("&Generate", "F9", self._handle_generate))
 
         # Commands
@@ -198,27 +219,50 @@ class MainWindow(QMainWindow):
         cmd_menu.addAction(self._action("&Ship Design...", "F4", self._handle_ship_design))
         cmd_menu.addAction(self._action("&Research...", "F5", self._handle_research))
         cmd_menu.addAction(self._action("&Battle Plans...", "F6", self._handle_battle_plans))
+        cmd_menu.addAction(
+            self._action("&Player Relations...", "F7", self._handle_player_relations, enabled=False)
+        )
+        cmd_menu.addSeparator()
+        cmd_menu.addAction(
+            self._action("Change Pass&word...", None, self._handle_change_password, enabled=False)
+        )
 
         # Report
         rep_menu = mb.addMenu("&Report")
-        rep_menu.addAction(self._action("&Planets...", None, self._handle_planets_report))
-        rep_menu.addAction(self._action("&Fleets...", None, self._handle_fleets_report))
+        rep_menu.addAction(self._action("&Planets...", "F3", self._handle_planets_report))
+        rep_menu.addAction(self._action("&Fleets...", "F3", self._handle_fleets_report))
+        rep_menu.addAction(
+            self._action("&Others' Fleets...", "F3", self._handle_others_fleets_report)
+        )
+        rep_menu.addSeparator()
+        rep_menu.addAction(self._action("&Battles...", None, self._handle_battles_report))
         rep_menu.addSeparator()
         rep_menu.addAction(self._action("&Score...", "F10", self._handle_score))
+        rep_menu.addSeparator()
+        dump_menu = rep_menu.addMenu("&Dump to Text File")
+        dump_menu.addAction(self._action("&Universe Definition", None, self._handle_dump_universe))
+        dump_menu.addAction(self._action("&Planet Information", None, self._handle_dump_planets))
+        dump_menu.addAction(self._action("&Fleet Information", None, self._handle_dump_fleets))
 
         # Help
         help_menu = mb.addMenu("&Help")
-        help_menu.addAction(self._action("Technology &Browser...", "F2", self._handle_tech_browser))
+        help_menu.addAction(self._action("&Introduction", None, self._handle_intro))
+        help_menu.addAction(self._action("&Player's Guide", "F1", self._handle_players_guide))
         help_menu.addSeparator()
-        help_menu.addAction(self._action("&About...", None, self._handle_about))
+        help_menu.addAction(self._action("Technology &Browser", "F2", self._handle_tech_browser))
+        help_menu.addAction(self._action("&Tutorial", None, self._handle_tutorial))
+        help_menu.addSeparator()
+        help_menu.addAction(self._action("&About Stars Reborn...", None, self._handle_about))
 
-    def _action(self, text, shortcut, slot, checkable=False) -> QAction:
+    def _action(self, text, shortcut, slot, checkable=False, enabled=True) -> QAction:
         a = QAction(text, self)
         if shortcut:
             a.setShortcut(QKeySequence(shortcut))
         a.triggered.connect(slot)
         if checkable:
             a.setCheckable(True)
+        if not enabled:
+            a.setEnabled(False)
         return a
 
     # ── toolbar ─────────────────────────────────────────────────────────────
@@ -306,25 +350,43 @@ class MainWindow(QMainWindow):
         self._idle_fleets_btn.clicked.connect(self._handle_idle_fleets)
         tb.addWidget(self._idle_fleets_btn)
 
-        tb.addSeparator()
+        self._enemy_filter_btn = self._toolbar_btn(
+            ResourcePaths.EnemyShipFilterIcon, "Enemy Ship Filter", checkable=True
+        )
+        self._enemy_filter_btn.clicked.connect(self._handle_enemy_ship_filter)
+        tb.addWidget(self._enemy_filter_btn)
 
-        zoom_in_btn = QPushButton("+")
-        zoom_in_btn.setFixedSize(24, 24)
-        zoom_in_btn.setToolTip("Zoom In")
-        zoom_in_btn.clicked.connect(self._handle_zoom_in)
-        tb.addWidget(zoom_in_btn)
+        self._design_filter_btn = self._toolbar_btn(
+            ResourcePaths.ShipDesignFilterIcon, "Ship Design Filter", checkable=True
+        )
+        self._design_filter_btn.clicked.connect(self._handle_ship_design_filter)
+        tb.addWidget(self._design_filter_btn)
 
-        zoom_out_btn = QPushButton("−")
-        zoom_out_btn.setFixedSize(24, 24)
-        zoom_out_btn.setToolTip("Zoom Out")
-        zoom_out_btn.clicked.connect(self._handle_zoom_out)
-        tb.addWidget(zoom_out_btn)
+        self._zoom_btn = QToolButton()
+        zoom_icon = QIcon(ResourcePaths.MagnifyingGlassIcon)
+        if not zoom_icon.isNull():
+            self._zoom_btn.setIcon(zoom_icon)
+            self._zoom_btn.setIconSize(_TOOLBAR_ICON_SIZE)
+        else:
+            self._zoom_btn.setText("Zoom")
+        self._zoom_btn.setToolTip("Zoom Level")
+        self._zoom_btn.setFixedSize(28, 28)
+        self._zoom_btn.setAutoRaise(True)
+        self._zoom_btn.setPopupMode(QToolButton.InstantPopup)
 
-        zoom_fit_btn = QPushButton("⊡")
-        zoom_fit_btn.setFixedSize(24, 24)
-        zoom_fit_btn.setToolTip("Fit to View (Home)")
-        zoom_fit_btn.clicked.connect(self._handle_zoom_fit)
-        tb.addWidget(zoom_fit_btn)
+        zoom_menu = QMenu(self._zoom_btn)
+        self._toolbar_zoom_actions = []
+        tb_zoom_group = QActionGroup(self)
+        for i, name in enumerate(ZoomLevel.names()):
+            a = QAction(name, self)
+            a.setCheckable(True)
+            a.triggered.connect(lambda checked, idx=i: self._handle_zoom(idx))
+            tb_zoom_group.addAction(a)
+            zoom_menu.addAction(a)
+            self._toolbar_zoom_actions.append(a)
+        self._toolbar_zoom_actions[self._view_opts.zoom_level].setChecked(True)
+        self._zoom_btn.setMenu(zoom_menu)
+        tb.addWidget(self._zoom_btn)
 
         spacer = QWidget()
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -408,20 +470,8 @@ class MainWindow(QMainWindow):
     def _handle_zoom(self, level: int):
         self._view_opts.zoom_level = level
         self._space_map.set_zoom(ZoomLevel.multipliers()[level])
-
-    def _handle_zoom_in(self):
-        lvl = min(ZoomLevel.Highest, self._view_opts.zoom_level + 1)
-        self._handle_zoom(lvl)
-        self._zoom_actions[lvl].setChecked(True)
-
-    def _handle_zoom_out(self):
-        lvl = max(ZoomLevel.Lowest, self._view_opts.zoom_level - 1)
-        self._handle_zoom(lvl)
-        self._zoom_actions[lvl].setChecked(True)
-
-    def _handle_zoom_fit(self):
-        self._space_map._fit_to_view()
-        self._space_map.update()
+        self._zoom_actions[level].setChecked(True)
+        self._toolbar_zoom_actions[level].setChecked(True)
 
     def _handle_add_waypoints(self):
         self.statusBar().showMessage("Waypoint mode — not yet implemented.")
@@ -432,6 +482,12 @@ class MainWindow(QMainWindow):
     def _handle_idle_fleets(self):
         self.statusBar().showMessage("Idle fleets filter — not yet implemented.")
 
+    def _handle_enemy_ship_filter(self):
+        self.statusBar().showMessage("Enemy ship filter — not yet implemented.")
+
+    def _handle_ship_design_filter(self):
+        self.statusBar().showMessage("Ship design filter — not yet implemented.")
+
     def _handle_toggle_toolbar(self):
         if self._main_toolbar.isVisible():
             self._main_toolbar.hide()
@@ -441,11 +497,20 @@ class MainWindow(QMainWindow):
     def _handle_new(self):
         self.statusBar().showMessage("New game — not yet implemented.")
 
+    def _handle_custom_race_wizard(self):
+        self.statusBar().showMessage("Custom Race Wizard — not yet implemented.")
+
     def _handle_open(self):
         self.statusBar().showMessage("Open game — not yet implemented.")
 
     def _handle_save(self):
         self.statusBar().showMessage("Save game — not yet implemented.")
+
+    def _handle_save_and_submit(self):
+        self.statusBar().showMessage("Save and Submit — not yet implemented.")
+
+    def _handle_print_map(self):
+        self.statusBar().showMessage("Print Map — not yet implemented.")
 
     def _handle_close(self):
         self.close()
@@ -453,11 +518,32 @@ class MainWindow(QMainWindow):
     def _handle_find(self):
         self.statusBar().showMessage("Find — not yet implemented.")
 
+    def _handle_window_layout_default(self):
+        self.statusBar().showMessage("Window Layout: Default — not yet implemented.")
+
+    def _handle_window_layout_save(self):
+        self.statusBar().showMessage("Window Layout: Save — not yet implemented.")
+
+    def _handle_window_layout_restore(self):
+        self.statusBar().showMessage("Window Layout: Restore — not yet implemented.")
+
+    def _handle_player_colors(self):
+        self.statusBar().showMessage("Player Colors — not yet implemented.")
+
     def _handle_race(self):
         self.statusBar().showMessage("Race view — not yet implemented.")
 
     def _handle_game_params(self):
         self.statusBar().showMessage("Game parameters — not yet implemented.")
+
+    def _handle_wait_for_new(self):
+        self.statusBar().showMessage("Wait for new turn — not yet implemented.")
+
+    def _handle_player_relations(self):
+        self.statusBar().showMessage("Player Relations — not yet implemented.")
+
+    def _handle_change_password(self):
+        self.statusBar().showMessage("Change Password — not yet implemented.")
 
     def _handle_generate(self):
         self._game_year += 1
@@ -490,8 +576,32 @@ class MainWindow(QMainWindow):
     def _handle_fleets_report(self):
         self.statusBar().showMessage("Fleets report — not yet implemented.")
 
+    def _handle_others_fleets_report(self):
+        self.statusBar().showMessage("Others' Fleets report — not yet implemented.")
+
+    def _handle_battles_report(self):
+        self.statusBar().showMessage("Battles report — not yet implemented.")
+
     def _handle_score(self):
         self.statusBar().showMessage("Score — not yet implemented.")
+
+    def _handle_dump_universe(self):
+        self.statusBar().showMessage("Dump universe — not yet implemented.")
+
+    def _handle_dump_planets(self):
+        self.statusBar().showMessage("Dump planets — not yet implemented.")
+
+    def _handle_dump_fleets(self):
+        self.statusBar().showMessage("Dump fleets — not yet implemented.")
+
+    def _handle_intro(self):
+        self.statusBar().showMessage("Introduction — not yet implemented.")
+
+    def _handle_players_guide(self):
+        self.statusBar().showMessage("Player's Guide — not yet implemented.")
+
+    def _handle_tutorial(self):
+        self.statusBar().showMessage("Tutorial — not yet implemented.")
 
     def _handle_tech_browser(self):
         if self._player is not None:

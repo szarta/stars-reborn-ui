@@ -46,6 +46,9 @@ class ResourcePaths:
     ShowRoutesIcon = _asset("assets/png/toolbar/show_routes.png")
     PlanetNamesIcon = _asset("assets/png/toolbar/planet_names.png")
     IdleFleetsIcon = _asset("assets/png/toolbar/idle_fleets.png")
+    EnemyShipFilterIcon = _asset("assets/png/toolbar/enemy_ship_filter.png")
+    ShipDesignFilterIcon = _asset("assets/png/toolbar/ship_design_filter.png")
+    MagnifyingGlassIcon = _asset("assets/png/toolbar/magnifying_glass.png")
 
 
 class PlanetView:
@@ -62,22 +65,23 @@ class ZoomLevel:
     Level25 = 0
     Level38 = 1
     Level50 = 2
-    Level100 = 3
-    Level125 = 4
-    Level150 = 5
-    Level200 = 6
-    Level400 = 7
+    Level75 = 3
+    Level100 = 4
+    Level125 = 5
+    Level150 = 6
+    Level200 = 7
+    Level400 = 8
     Lowest = Level25
     Highest = Level400
     Default = Level200
 
     @staticmethod
     def multipliers():
-        return [0.25, 0.38, 0.5, 1.0, 1.25, 1.5, 2.0, 4.0]
+        return [0.25, 0.38, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 4.0]
 
     @staticmethod
     def names():
-        return ["25%", "38%", "50%", "100%", "125%", "150%", "200%", "400%"]
+        return ["25%", "38%", "50%", "75%", "100%", "125%", "150%", "200%", "400%"]
 
 
 class PrimaryRacialTrait:
