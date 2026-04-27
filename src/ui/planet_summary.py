@@ -13,10 +13,11 @@ Layout (top to bottom):
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QBoxLayout,
+    QFrame,
     QLabel,
     QLineEdit,
     QScrollArea,
@@ -26,43 +27,58 @@ from PySide6.QtWidgets import (
 
 from ..rendering.enumerations import NeverSeenPlanet
 
-# ── Hab bar ────────────────────────────────────────────────────────────────
+# ── Hab panel ──────────────────────────────────────────────────────────────
 
 
-class _HabBar(QWidget):
+class _HabPanel(QWidget):
     """
-    Horizontal hab-axis bar.
+    Three stacked hab bars (Gravity / Temperature / Radiation).
 
-    Shows the race's preferred range as a green band and the planet's actual
-    position as a tick.  Renders "Immune" when the race ignores this axis.
+    Each bar background spans the full universal axis range; the race's
+    tolerance window is rendered as a saturated coloured band over the
+    matching span (blue / red / green); the planet's actual value is shown
+    as a diamond + crosshair marker on top of the bar.  The numeric value
+    (e.g. ``1.00g``, ``0°C``, ``50mR``) is drawn just outside the right
+    edge of the bar.  The axis name sits at the left.
     """
 
-    _H = 14
-    _TICK_W = 3
+    KEYS = ("gravity", "temperature", "radiation")
+    LABELS = ("Gravity", "Temperature", "Radiation")
+    BAND_COLORS = (
+        QColor(0x10, 0x20, 0xC0),  # gravity   — saturated blue
+        QColor(0xB0, 0x10, 0x10),  # temp      — saturated red
+        QColor(0x10, 0xA0, 0x10),  # radiation — saturated green
+    )
 
-    _BG = QColor(0x20, 0x20, 0x20)
-    _BORDER = QColor(0x80, 0x80, 0x80)
-    _UNKNOWN_FILL = QColor(0x55, 0x55, 0x55)
-    _RANGE_FILL = QColor(0x00, 0x99, 0x00, 180)
-    _TICK_GOOD = QColor(0x00, 0xCC, 0x00)
-    _TICK_BAD = QColor(0xAA, 0x00, 0x00)
-    _IMMUNE_FILL = QColor(0x00, 0xCC, 0x00)
-    _TEXT = QColor(0xDD, 0xDD, 0xDD)
+    _BAR_H = 14
+    _BAR_GAP = 0
+    _LEFT_W = 78
+    _RIGHT_W = 46
+    _DIAMOND = 9
 
-    def __init__(self, axis_label: str, parent=None):
+    _BG = QColor(0x00, 0x00, 0x00)
+    _BORDER = QColor(0x60, 0x60, 0x60)
+    _UNKNOWN_FILL = QColor(0x40, 0x40, 0x40)
+    _LABEL = QColor(0xCC, 0xCC, 0xCC)
+    _VALUE = QColor(0xCC, 0xCC, 0xCC)
+    _DIAMOND_BORDER = QColor(0x00, 0x00, 0x00)
+    _IMMUNE_TEXT = QColor(0xFF, 0xFF, 0xFF)
+
+    bar_clicked = Signal(str)
+
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._label = axis_label
-        self._planet_norm: int | None = None
-        self._range_min: int | None = None
-        self._range_max: int | None = None
-        self._immune = False
-        self._unknown = True
-        self._value_text = "?"
-        self.setMinimumHeight(self._H + 20)
+        self._state = [
+            {"norm": None, "min": None, "max": None, "immune": False, "unknown": True, "text": "?"}
+            for _ in range(3)
+        ]
+        h = 3 * self._BAR_H + 2 * self._BAR_GAP + 2
+        self.setMinimumHeight(h)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-    def set_data(
+    def set_axis(
         self,
+        i: int,
         planet_norm: int | None,
         range_min: int | None,
         range_max: int | None,
@@ -70,126 +86,382 @@ class _HabBar(QWidget):
         unknown: bool,
         value_text: str,
     ):
-        self._planet_norm = planet_norm
-        self._range_min = range_min
-        self._range_max = range_max
-        self._immune = immune
-        self._unknown = unknown
-        self._value_text = value_text
+        self._state[i] = {
+            "norm": planet_norm,
+            "min": range_min,
+            "max": range_max,
+            "immune": immune,
+            "unknown": unknown,
+            "text": value_text,
+        }
         self.update()
+
+    def _bar_y(self, i: int) -> int:
+        return i * (self._BAR_H + self._BAR_GAP)
+
+    def _chart_geometry(self):
+        chart_x = self._LEFT_W
+        chart_w = max(40, self.width() - chart_x - self._RIGHT_W)
+        return chart_x, chart_w
+
+    def _hit_test(self, x: float, y: float) -> int | None:
+        chart_x, chart_w = self._chart_geometry()
+        if x < chart_x or x > chart_x + chart_w:
+            return None
+        for i in range(3):
+            y0 = self._bar_y(i)
+            if y0 <= y <= y0 + self._BAR_H:
+                return i
+        return None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            i = self._hit_test(event.position().x(), event.position().y())
+            if i is not None:
+                self.bar_clicked.emit(self.KEYS[i])
+                event.accept()
+                return
+        super().mousePressEvent(event)
 
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, False)
-
-        lbl_w = 85
-        val_w = 65
-        bar_w = max(40, self.width() - lbl_w - val_w - 6)
-        bar_x = lbl_w
-        bar_y = (self.height() - self._H) // 2
+        chart_x, chart_w = self._chart_geometry()
 
         p.setFont(QFont("Arial", 8))
-        p.setPen(self._TEXT)
-        p.drawText(
-            QRectF(0, 0, lbl_w - 2, self.height()),
-            Qt.AlignRight | Qt.AlignVCenter,
-            self._label,
-        )
+        for i in range(3):
+            st = self._state[i]
+            y = self._bar_y(i)
 
-        bar_rect = QRectF(bar_x, bar_y, bar_w, self._H)
-        p.fillRect(bar_rect, self._BG)
-        p.setPen(QPen(self._BORDER, 1))
-        p.drawRect(bar_rect)
+            # Axis label at left
+            p.setPen(self._LABEL)
+            p.drawText(
+                QRectF(0, y, self._LEFT_W - 4, self._BAR_H),
+                Qt.AlignRight | Qt.AlignVCenter,
+                self.LABELS[i],
+            )
 
-        if self._unknown:
-            p.fillRect(bar_rect.adjusted(1, 1, -1, -1), self._UNKNOWN_FILL)
-        elif self._immune:
-            p.fillRect(bar_rect.adjusted(1, 1, -1, -1), self._IMMUNE_FILL)
-            p.setPen(self._TEXT)
-            p.drawText(bar_rect, Qt.AlignCenter, "Immune")
-        else:
-            if self._range_min is not None and self._range_max is not None:
-                rx = bar_x + (self._range_min / 100.0) * bar_w
-                rw = ((self._range_max - self._range_min) / 100.0) * bar_w
-                p.fillRect(
-                    QRectF(rx, bar_y + 1, max(1.0, rw), self._H - 2),
-                    QBrush(self._RANGE_FILL),
-                )
-            if self._planet_norm is not None:
-                in_range = (
-                    self._range_min is not None
-                    and self._range_max is not None
-                    and self._range_min <= self._planet_norm <= self._range_max
-                )
-                tick_color = self._TICK_GOOD if in_range else self._TICK_BAD
-                tx = bar_x + (self._planet_norm / 100.0) * bar_w
-                p.fillRect(
-                    QRectF(tx - self._TICK_W / 2, bar_y, self._TICK_W, self._H),
-                    tick_color,
-                )
+            # Bar background
+            bar_rect = QRectF(chart_x, y, chart_w, self._BAR_H)
+            p.fillRect(bar_rect, self._BG)
+            p.setPen(QPen(self._BORDER, 1))
+            p.drawRect(bar_rect)
 
-        p.setPen(self._TEXT)
-        p.drawText(
-            QRectF(bar_x + bar_w + 4, 0, val_w, self.height()),
-            Qt.AlignLeft | Qt.AlignVCenter,
-            self._value_text,
-        )
+            inner = bar_rect.adjusted(1, 1, -1, -1)
+
+            if st["unknown"]:
+                p.fillRect(inner, self._UNKNOWN_FILL)
+            elif st["immune"]:
+                p.fillRect(inner, self.BAND_COLORS[i])
+                p.setPen(self._IMMUNE_TEXT)
+                p.drawText(bar_rect, Qt.AlignCenter, "Immune")
+            else:
+                if st["min"] is not None and st["max"] is not None:
+                    lo = max(0, min(100, int(st["min"])))
+                    hi = max(0, min(100, int(st["max"])))
+                    rx = chart_x + (chart_w - 1) * lo / 100.0
+                    rw = max(1.0, (chart_w - 1) * (hi - lo) / 100.0)
+                    p.fillRect(
+                        QRectF(rx, y + 1, rw, self._BAR_H - 2),
+                        QBrush(self.BAND_COLORS[i]),
+                    )
+
+            # Value text on right of bar
+            p.setPen(self._VALUE)
+            p.drawText(
+                QRectF(chart_x + chart_w + 4, y, self._RIGHT_W - 4, self._BAR_H),
+                Qt.AlignLeft | Qt.AlignVCenter,
+                st["text"],
+            )
+
+        # Diamond + crosshair markers on top
+        for i in range(3):
+            st = self._state[i]
+            if st["unknown"] or st["immune"] or st["norm"] is None:
+                continue
+            n = max(0, min(100, int(st["norm"])))
+            cx = chart_x + (chart_w - 1) * n / 100.0
+            cy = self._bar_y(i) + self._BAR_H / 2
+            d = self._DIAMOND / 2
+
+            p.setRenderHint(QPainter.Antialiasing, False)
+            p.setPen(QPen(self._DIAMOND_BORDER, 1))
+            p.drawLine(
+                QPointF(cx - d - 2, cy),
+                QPointF(cx + d + 2, cy),
+            )
+            p.drawLine(
+                QPointF(cx, cy - d - 2),
+                QPointF(cx, cy + d + 2),
+            )
+
+            p.setRenderHint(QPainter.Antialiasing, True)
+            poly = QPolygonF(
+                [
+                    QPointF(cx, cy - d),
+                    QPointF(cx + d, cy),
+                    QPointF(cx, cy + d),
+                    QPointF(cx - d, cy),
+                ]
+            )
+            p.setBrush(QBrush(self.BAND_COLORS[i]))
+            p.setPen(QPen(self._DIAMOND_BORDER, 1))
+            p.drawPolygon(poly)
+        p.setRenderHint(QPainter.Antialiasing, False)
 
 
-# ── Mineral bar ────────────────────────────────────────────────────────────
+# ── Mineral panel ──────────────────────────────────────────────────────────
 
 
-class _MineralBar(QWidget):
+class _MineralPanel(QWidget):
     """
-    Horizontal mineral-amount bar.
+    Three stacked mineral bars (Ironium / Boranium / Germanium) sharing a
+    single horizontal kT axis spanning 0–20000 kT.
 
-    Shows a filled bar proportional to surface kT (scale 0–5000 kT).
+    Each bar shows surface kT as a filled bar from the left.  A coloured
+    diamond marker on the same axis sits at concentration × 200 (0–100
+    concentration → 0–20000 kT).  A single labelled ruler is painted once
+    below the three bars with a tick every 1000 kT.
     """
 
-    _H = 12
-    _MAX_KT = 5000
+    KEYS = ("ironium", "boranium", "germanium")
+    LABELS = ("Ironium", "Boranium", "Germanium")
+    FILLS = (
+        QColor(0x44, 0x88, 0xFF),
+        QColor(0x44, 0xCC, 0x44),
+        QColor(0xDD, 0xDD, 0x00),
+    )
 
-    _BG = QColor(0x20, 0x20, 0x20)
+    _MAX_KT = 20000
+    _BAR_H = 12
+    _BAR_GAP = 1
+    _RULER_H = 16
+    _LEFT_PAD = 26  # room for "kT" label at far left of the ruler
+    _DIAMOND = 9
+
+    _BG = QColor(0x00, 0x00, 0x00)
     _BORDER = QColor(0x60, 0x60, 0x60)
-    _TEXT = QColor(0xDD, 0xDD, 0xDD)
+    _AXIS = QColor(0xCC, 0xCC, 0xCC)
+    _DIAMOND_BORDER = QColor(0x00, 0x00, 0x00)
 
-    def __init__(self, label: str, fill_color: QColor, parent=None):
+    bar_clicked = Signal(str)  # "ironium" | "boranium" | "germanium"
+
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self._label = label
-        self._fill = fill_color
-        self._amount = 0
-        self.setMinimumHeight(self._H + 18)
+        self._surface = [0, 0, 0]
+        self._concentration: list[int | None] = [None, None, None]
+        h = 3 * self._BAR_H + 2 * self._BAR_GAP + self._RULER_H + 2
+        self.setMinimumHeight(h)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-    def set_amount(self, kt: int):
-        self._amount = max(0, kt)
+    def set_data(
+        self,
+        surface: tuple[int, int, int],
+        concentration: tuple[int | None, int | None, int | None],
+    ):
+        self._surface = [int(s or 0) for s in surface]
+        self._concentration = [None if c is None else int(c) for c in concentration]
         self.update()
+
+    def _chart_geometry(self):
+        chart_x = self._LEFT_PAD
+        chart_w = max(40, self.width() - chart_x - 4)
+        return chart_x, chart_w
+
+    def _bar_y(self, i: int) -> int:
+        return i * (self._BAR_H + self._BAR_GAP)
+
+    def _hit_test(self, x: float, y: float) -> int | None:
+        chart_x, chart_w = self._chart_geometry()
+        if x < chart_x or x > chart_x + chart_w:
+            return None
+        for i in range(3):
+            y0 = self._bar_y(i)
+            if y0 <= y <= y0 + self._BAR_H:
+                return i
+        return None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            i = self._hit_test(event.position().x(), event.position().y())
+            if i is not None:
+                self.bar_clicked.emit(self.KEYS[i])
+                event.accept()
+                return
+        super().mousePressEvent(event)
 
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, False)
-
-        lbl_w = 70
-        bar_w = max(40, self.width() - lbl_w - 4)
-        bar_x = lbl_w
-        bar_y = (self.height() - self._H) // 2
+        chart_x, chart_w = self._chart_geometry()
 
         p.setFont(QFont("Arial", 8))
-        p.setPen(self._TEXT)
+        for i in range(3):
+            y = self._bar_y(i)
+            bar_rect = QRectF(chart_x, y, chart_w, self._BAR_H)
+            p.fillRect(bar_rect, self._BG)
+            p.setPen(QPen(self._BORDER, 1))
+            p.drawRect(bar_rect)
+
+            kt = max(0, min(self._MAX_KT, self._surface[i]))
+            if kt > 0:
+                fw = (chart_w - 2) * kt / self._MAX_KT
+                p.fillRect(
+                    QRectF(chart_x + 1, y + 1, fw, self._BAR_H - 2),
+                    self.FILLS[i],
+                )
+
+            p.setPen(self.FILLS[i])
+            p.drawText(
+                QRectF(chart_x + 4, y, 80, self._BAR_H),
+                Qt.AlignVCenter | Qt.AlignLeft,
+                self.LABELS[i],
+            )
+
+        p.setRenderHint(QPainter.Antialiasing, True)
+        for i in range(3):
+            c = self._concentration[i]
+            if c is None:
+                continue
+            cx = chart_x + (chart_w - 1) * max(0, min(100, c)) / 100.0
+            cy = self._bar_y(i) + self._BAR_H / 2
+            d = self._DIAMOND / 2
+            poly = QPolygonF(
+                [
+                    QPointF(cx, cy - d),
+                    QPointF(cx + d, cy),
+                    QPointF(cx, cy + d),
+                    QPointF(cx - d, cy),
+                ]
+            )
+            p.setBrush(QBrush(self.FILLS[i]))
+            p.setPen(QPen(self._DIAMOND_BORDER, 1))
+            p.drawPolygon(poly)
+        p.setRenderHint(QPainter.Antialiasing, False)
+
+        ruler_y = 3 * self._BAR_H + 2 * self._BAR_GAP + 1
+        p.setPen(self._AXIS)
         p.drawText(
-            QRectF(0, 0, lbl_w - 2, self.height()),
-            Qt.AlignRight | Qt.AlignVCenter,
-            self._label,
+            QRectF(0, ruler_y, chart_x - 2, self._RULER_H),
+            Qt.AlignRight | Qt.AlignTop,
+            "kT",
         )
+        for n in range(0, self._MAX_KT + 1, 1000):
+            x = chart_x + (chart_w - 1) * n / self._MAX_KT
+            p.drawLine(QPointF(x, ruler_y), QPointF(x, ruler_y + 3))
+            p.drawText(
+                QRectF(x - 30, ruler_y + 3, 60, self._RULER_H - 3),
+                Qt.AlignTop | Qt.AlignHCenter,
+                str(n),
+            )
 
-        bar_rect = QRectF(bar_x, bar_y, bar_w, self._H)
-        p.fillRect(bar_rect, self._BG)
-        p.setPen(QPen(self._BORDER, 1))
-        p.drawRect(bar_rect)
 
-        if self._amount > 0:
-            fill_w = min(bar_w - 2, (self._amount / self._MAX_KT) * bar_w)
-            p.fillRect(QRectF(bar_x + 1, bar_y + 1, fill_w, self._H - 2), self._fill)
+# ── Click-overlay popup framework ─────────────────────────────────────────
+
+
+class _ClickPopup(QFrame):
+    """
+    Transient cream-coloured tooltip-style popup, dismissed by clicking
+    elsewhere (Qt.Popup window flag).  Displays a single rich-text block.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent, Qt.Popup)
+        self.setFrameShape(QFrame.Box)
+        self.setLineWidth(1)
+        self.setStyleSheet(
+            "QFrame { background-color: #ffffcc; border: 1px solid black; }"
+            "QLabel { background: transparent; padding: 0px; }"
+        )
+        self._label = QLabel(self)
+        self._label.setTextFormat(Qt.RichText)
+        lay = QBoxLayout(QBoxLayout.Direction.TopToBottom, self)
+        lay.setContentsMargins(6, 4, 6, 4)
+        lay.setSpacing(0)
+        lay.addWidget(self._label)
+
+    def show_html(self, html: str, pos):
+        self._label.setText(html)
+        self.adjustSize()
+        self.move(pos)
+        self.show()
+        self.raise_()
+
+
+class _ClickableLabel(QLabel):
+    """QLabel that emits ``clicked`` on a left-mouse press."""
+
+    clicked = Signal()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+
+# ── Population helpers ────────────────────────────────────────────────────
+
+
+def _population_factor(race) -> float:
+    """Combined PRT/LRT multiplier on max-pop (PopulationFactor in design)."""
+    if race is None:
+        return 1.0
+    factor = 1.0
+    prt = (getattr(race, "prt", "") or "").upper()
+    lrts = [s.upper() for s in (getattr(race, "lrts", []) or [])]
+    if prt == "HE":
+        factor *= 0.5
+    elif prt == "JOAT":
+        factor *= 1.2
+    if "OBRM" in lrts:
+        factor *= 1.1
+    return factor
+
+
+def _max_pop(value_pct: int | None, race) -> int:
+    """``MaxPlanetPop × hab/100 × PopulationFactor`` (design/mechanics)."""
+    if value_pct is None or value_pct <= 0:
+        return 0
+    v = max(5, int(value_pct))
+    return int(1_000_000 * v / 100 * _population_factor(race))
+
+
+def _capacity_factor(pop: int, max_pop: int) -> float:
+    if max_pop <= 0:
+        return 0.0
+    cap = pop / max_pop
+    if cap <= 0.25:
+        return 1.0
+    return (16.0 / 9.0) * (1.0 - cap) ** 2
+
+
+def _annual_growth(pop: int, race, value_pct: int | None, max_pop: int) -> int:
+    """
+    Single-turn growth using the documented formula.  Returns 0 when the
+    planet has zero/negative value (dying populations are handled
+    separately and not surfaced through this helper).
+    """
+    if pop <= 0 or value_pct is None or value_pct <= 0 or max_pop <= 0:
+        return 0
+    rate = float(getattr(race, "growth_rate", 15) or 15) / 100.0
+    if (getattr(race, "prt", "") or "").upper() == "HE":
+        rate *= 2.0
+    v = max(5, int(value_pct)) / 100.0
+    return int(round(pop * rate * v * _capacity_factor(pop, max_pop)))
+
+
+def _mining_rate(mines: int, mine_setting: int, concentration: int | None) -> int:
+    """``mines × mine_setting × concentration / 1000`` (kT/year, floored).
+
+    The ``mine_setting`` race stat is calibrated against 10 mines at
+    concentration 100 (Stars! in-game help, *Mines* section), so the
+    combined formula divides by 1000 rather than 100.
+    """
+    if concentration is None or mines <= 0 or mine_setting <= 0:
+        return 0
+    return int(mines * mine_setting * max(0, int(concentration)) // 1000)
 
 
 # ── Planet summary widget ──────────────────────────────────────────────────
@@ -226,7 +498,8 @@ class PlanetSummaryWidget(QWidget):
 
         # Value + population row
         self._value_label = QLabel()
-        self._pop_label = QLabel()
+        self._pop_label = _ClickableLabel()
+        self._pop_label.setCursor(Qt.PointingHandCursor)
         val_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         val_row.addWidget(self._value_label)
         val_row.addStretch(1)
@@ -235,15 +508,20 @@ class PlanetSummaryWidget(QWidget):
         # Report age
         self._report_label = QLabel()
 
-        # Hab bars
-        self._grav_bar = _HabBar("Gravity")
-        self._temp_bar = _HabBar("Temperature")
-        self._rad_bar = _HabBar("Radiation")
+        # Hab panel (3 stacked axis bars with saturated tolerance bands)
+        self._hab_panel = _HabPanel()
 
-        # Mineral bars
-        self._iron_bar = _MineralBar("Ironium", QColor(0x44, 0x88, 0xFF))
-        self._bor_bar = _MineralBar("Boranium", QColor(0x44, 0xCC, 0x44))
-        self._ger_bar = _MineralBar("Germanium", QColor(0xDD, 0xDD, 0x00))
+        # Mineral panel (3 bars + shared 0–20000 kT ruler)
+        self._mineral_panel = _MineralPanel()
+
+        # Click-overlay popup + selection state
+        self._popup = _ClickPopup(self)
+        self._current_planet = None
+        self._current_player = None
+
+        self._hab_panel.bar_clicked.connect(self._show_hab_overlay)
+        self._mineral_panel.bar_clicked.connect(self._show_mineral_overlay)
+        self._pop_label.clicked.connect(self._show_population_overlay)
 
         # Dark-background content area
         content = QWidget()
@@ -254,12 +532,8 @@ class PlanetSummaryWidget(QWidget):
         cl.addWidget(self._name_label)
         cl.addLayout(val_row)
         cl.addWidget(self._report_label)
-        cl.addWidget(self._grav_bar)
-        cl.addWidget(self._temp_bar)
-        cl.addWidget(self._rad_bar)
-        cl.addWidget(self._iron_bar)
-        cl.addWidget(self._bor_bar)
-        cl.addWidget(self._ger_bar)
+        cl.addWidget(self._hab_panel)
+        cl.addWidget(self._mineral_panel)
         cl.addStretch(1)
         content.setLayout(cl)
 
@@ -285,6 +559,11 @@ class PlanetSummaryWidget(QWidget):
 
     def update_planet(self, planet, player=None):
         """Called when a planet is selected on the space map."""
+        self._current_planet = planet
+        self._current_player = player
+        if self._popup.isVisible():
+            self._popup.hide()
+
         x = getattr(planet, "x", 0)
         y = getattr(planet, "y", 0)
         self._coords_label.setText(f"ID #{planet.id}  X: {int(x)}  Y: {int(y)}  {planet.name}")
@@ -296,11 +575,9 @@ class PlanetSummaryWidget(QWidget):
             self._value_label.setText("Unknown")
             self._pop_label.setText("")
             self._report_label.setText("")
-            for bar in (self._grav_bar, self._temp_bar, self._rad_bar):
-                bar.set_data(None, None, None, False, True, "?")
-            self._iron_bar.set_amount(0)
-            self._bor_bar.set_amount(0)
-            self._ger_bar.set_amount(0)
+            for i in range(3):
+                self._hab_panel.set_axis(i, None, None, None, False, True, "?")
+            self._mineral_panel.set_data((0, 0, 0), (None, None, None))
             return
 
         value = getattr(planet, "value", None)
@@ -330,88 +607,197 @@ class PlanetSummaryWidget(QWidget):
     def _update_hab_bars(self, planet, player):
         race = getattr(player, "race", None) if player else None
 
+        from ..rendering.space import normalize_gravity, normalize_temperature
+
         # Gravity
         g_val = getattr(planet, "gravity", None)
         g_norm, g_text = None, "?"
         if g_val is not None:
             try:
-                from ..rendering.space import normalize_gravity
-
                 g_norm = normalize_gravity(g_val)
                 g_text = f"{g_val:.2f}g"
             except Exception:
                 pass
         g_immune = getattr(race, "gravity_immune", False) if race else False
-        if g_immune:
-            self._grav_bar.set_data(g_norm, None, None, True, False, g_text)
-        elif race:
+        g_min = g_max = None
+        if not g_immune and race:
             try:
-                from ..rendering.space import normalize_gravity
-
-                self._grav_bar.set_data(
-                    g_norm,
-                    normalize_gravity(race.gravity_min),
-                    normalize_gravity(race.gravity_max),
-                    False,
-                    False,
-                    g_text,
-                )
+                g_min = normalize_gravity(race.gravity_min)
+                g_max = normalize_gravity(race.gravity_max)
             except Exception:
-                self._grav_bar.set_data(g_norm, None, None, False, g_norm is None, g_text)
-        else:
-            self._grav_bar.set_data(g_norm, None, None, False, g_norm is None, g_text)
+                pass
+        self._hab_panel.set_axis(0, g_norm, g_min, g_max, g_immune, g_norm is None, g_text)
 
         # Temperature
         t_val = getattr(planet, "temperature", None)
         t_norm, t_text = None, "?"
         if t_val is not None:
             try:
-                from ..rendering.space import normalize_temperature
-
                 t_norm = normalize_temperature(t_val)
                 t_text = f"{t_val}°C"
             except Exception:
                 pass
         t_immune = getattr(race, "temperature_immune", False) if race else False
-        if t_immune:
-            self._temp_bar.set_data(t_norm, None, None, True, False, t_text)
-        elif race:
+        t_min = t_max = None
+        if not t_immune and race:
             try:
-                from ..rendering.space import normalize_temperature
-
-                self._temp_bar.set_data(
-                    t_norm,
-                    normalize_temperature(race.temperature_min),
-                    normalize_temperature(race.temperature_max),
-                    False,
-                    False,
-                    t_text,
-                )
+                t_min = normalize_temperature(race.temperature_min)
+                t_max = normalize_temperature(race.temperature_max)
             except Exception:
-                self._temp_bar.set_data(t_norm, None, None, False, t_norm is None, t_text)
-        else:
-            self._temp_bar.set_data(t_norm, None, None, False, t_norm is None, t_text)
+                pass
+        self._hab_panel.set_axis(1, t_norm, t_min, t_max, t_immune, t_norm is None, t_text)
 
-        # Radiation
+        # Radiation (mR; native 0–100 scale, no normalization needed)
         r_val = getattr(planet, "radiation", None)
         r_norm = int(r_val) if r_val is not None else None
-        r_text = f"{r_val} mR/yr" if r_val is not None else "?"
+        r_text = f"{r_val}mR" if r_val is not None else "?"
         r_immune = getattr(race, "radiation_immune", False) if race else False
-        if r_immune:
-            self._rad_bar.set_data(r_norm, None, None, True, False, r_text)
-        elif race:
-            self._rad_bar.set_data(
-                r_norm,
-                int(race.radiation_min),
-                int(race.radiation_max),
-                False,
-                False,
-                r_text,
-            )
-        else:
-            self._rad_bar.set_data(r_norm, None, None, False, r_norm is None, r_text)
+        r_min = r_max = None
+        if not r_immune and race:
+            try:
+                r_min = int(race.radiation_min)
+                r_max = int(race.radiation_max)
+            except Exception:
+                pass
+        self._hab_panel.set_axis(2, r_norm, r_min, r_max, r_immune, r_norm is None, r_text)
 
     def _update_mineral_bars(self, planet):
-        self._iron_bar.set_amount(getattr(planet, "surface_ironium", 0) or 0)
-        self._bor_bar.set_amount(getattr(planet, "surface_boranium", 0) or 0)
-        self._ger_bar.set_amount(getattr(planet, "surface_germanium", 0) or 0)
+        surface = (
+            getattr(planet, "surface_ironium", 0) or 0,
+            getattr(planet, "surface_boranium", 0) or 0,
+            getattr(planet, "surface_germanium", 0) or 0,
+        )
+        concentration = (
+            getattr(planet, "ironium_concentration", None),
+            getattr(planet, "boranium_concentration", None),
+            getattr(planet, "germanium_concentration", None),
+        )
+        self._mineral_panel.set_data(surface, concentration)
+
+    # ── Click overlays ─────────────────────────────────────────────────────
+
+    _HAB_TEXT_COLORS = {
+        "gravity": "#1820c0",
+        "temperature": "#b01010",
+        "radiation": "#10a010",
+    }
+
+    _MINERAL_TEXT_COLORS = {
+        "ironium": "#3478e0",
+        "boranium": "#10a010",
+        "germanium": "#b8b800",
+    }
+
+    @staticmethod
+    def _format_gravity(g: float) -> str:
+        return f"{g:.2f}g"
+
+    @staticmethod
+    def _format_temperature(t: int) -> str:
+        return f"{int(t)}°C"
+
+    @staticmethod
+    def _format_radiation(r: int) -> str:
+        return f"{int(r)}mR"
+
+    _HAB_AXIS_LABELS = {
+        "gravity": "Gravity",
+        "temperature": "Temperature",
+        "radiation": "Radiation",
+    }
+
+    def _hab_axis_formatter(self, axis: str):
+        return {
+            "gravity": self._format_gravity,
+            "temperature": self._format_temperature,
+            "radiation": self._format_radiation,
+        }[axis]
+
+    def _show_hab_overlay(self, axis: str):
+        planet = self._current_planet
+        if planet is None:
+            return
+        race = getattr(self._current_player, "race", None) if self._current_player else None
+        color = self._HAB_TEXT_COLORS.get(axis, "#000000")
+        label = self._HAB_AXIS_LABELS[axis]
+        fmt = self._hab_axis_formatter(axis)
+
+        cur_val = getattr(planet, axis, None)
+        cur = fmt(cur_val) if cur_val is not None else "?"
+        mn = getattr(race, f"{axis}_min", None) if race else None
+        mx = getattr(race, f"{axis}_max", None) if race else None
+        immune = bool(getattr(race, f"{axis}_immune", False)) if race else False
+        rng = f"{fmt(mn)} and {fmt(mx)}" if (mn is not None and mx is not None) else None
+
+        line1 = f"{label} currently is {cur}."
+        if immune:
+            body = f"{line1}<br>Your colonists are immune to {label.lower()}."
+        elif rng is not None:
+            body = (
+                f"{line1}<br>Your colonists prefer planets where the<br>{label} is between {rng}."
+            )
+        else:
+            body = line1
+
+        html = f'<font color="{color}">{body}</font>'
+        self._popup.show_html(html, QCursor.pos())
+
+    def _show_mineral_overlay(self, mineral: str):
+        planet = self._current_planet
+        if planet is None:
+            return
+        race = getattr(self._current_player, "race", None) if self._current_player else None
+
+        label = mineral.capitalize()
+        color = self._MINERAL_TEXT_COLORS.get(mineral, "#000000")
+
+        surface = getattr(planet, f"surface_{mineral}", 0) or 0
+        concentration = getattr(planet, f"{mineral}_concentration", None)
+        homeworld = bool(getattr(planet, "homeworld", False))
+        mines = int(getattr(planet, "mines", 0) or 0)
+        mine_setting = int(getattr(race, "mine_production", 10) if race else 10)
+
+        rate = _mining_rate(mines, mine_setting, concentration)
+
+        conc_text = (
+            f"{int(concentration)}{' (HW)' if homeworld else ''}"
+            if concentration is not None
+            else "?"
+        )
+        body = (
+            f"<b>{label}</b><br>"
+            f"On Surface: {int(surface)}kT<br>"
+            f"Mineral Concentration: {conc_text}<br>"
+            f"Mining Rate: {rate}kT/yr"
+        )
+        html = f'<font color="{color}">{body}</font>'
+        self._popup.show_html(html, QCursor.pos())
+
+    def _show_population_overlay(self):
+        planet = self._current_planet
+        if planet is None:
+            return
+        race = getattr(self._current_player, "race", None) if self._current_player else None
+
+        name = getattr(planet, "name", "this planet")
+        pop = int(getattr(planet, "population", 0) or 0)
+        if pop <= 0:
+            # Uninhabited planets do not show the population popup in the
+            # original — bail out silently.
+            return
+
+        value = getattr(planet, "value", None)
+        cap = _max_pop(value, race)
+        growth = _annual_growth(pop, race, value, cap)
+
+        # The original game shows a (min, max) range.  The exact min/max
+        # formula has not yet been confirmed via oracle; until it is, show
+        # the documented annual-growth value for both bounds so the popup
+        # matches the wording of the screencap.  Tracked as research.
+        body = (
+            f"Your population on {name} is {pop:,}.<br>"
+            f"{name} will support a population of up to {cap:,} of your colonists.<br>"
+            f"Your population on {name} will grow by {growth:,} to {growth:,} next year."
+        )
+        html = f'<font color="#cc7a00">{body}</font>'
+        self._popup.show_html(html, QCursor.pos())
