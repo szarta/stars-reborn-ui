@@ -213,18 +213,7 @@ class IntroUI(QDialog):
 
         # Build planet list from the turn file (player's fog-of-war view).
         # Positions come from the turn file; the xy file is saved as-is for the engine to serve.
-        planets = [
-            PlanetData(
-                id=p["id"],
-                name=p["name"],
-                x=float(p["x"]),
-                y=float(p["y"]),
-                homeworld=p.get("homeworld", False),
-                owner=p.get("owner"),
-                population=p.get("population", 0),
-            )
-            for p in turn["planets"]
-        ]
+        planets = [PlanetData.from_turn_planet(p) for p in turn["planets"]]
 
         from .main_window import MainWindow
 
@@ -274,18 +263,7 @@ class IntroUI(QDialog):
             except Exception as exc:
                 log.warning("Could not read %s: %s", xy_path, exc)
 
-        planets = [
-            PlanetData(
-                id=p["id"],
-                name=p["name"],
-                x=float(p["x"]),
-                y=float(p["y"]),
-                homeworld=p.get("homeworld", False),
-                owner=p.get("owner"),
-                population=p.get("population", 0),
-            )
-            for p in turn.get("planets", [])
-        ]
+        planets = [PlanetData.from_turn_planet(p) for p in turn.get("planets", [])]
 
         from .main_window import MainWindow
 

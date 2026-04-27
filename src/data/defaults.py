@@ -15,16 +15,78 @@ from dataclasses import dataclass
 
 @dataclass
 class PlanetData:
-    """Duck-typed planet object understood by SpaceMap and InfoPanel."""
+    """Duck-typed planet object understood by SpaceMap and InfoPanel.
+
+    Field shape mirrors the engine's per-player turn file (PlayerView):
+    identity (id, name, x, y) is always present; contents fields are
+    populated only for planets the player has observed (penetrating-scan
+    range or owned). For never-observed planets contents stay at their
+    None / 0 defaults and ``years_since`` is -1.
+
+    See stars-reborn-design/docs/architecture.rst (Per-Player Visibility).
+    """
 
     id: int
     name: str
     x: float
     y: float
+
+    # Identity-adjacent (always present in current engine output).
     homeworld: bool = False
     owner: int | None = None
     population: int = 0
-    years_since: int = 0  # 0 = seen this turn; -1 = never seen
+    years_since: int = 0  # 0 = scanned this turn; -1 = never observed.
+
+    # Hab — None for never-observed; concrete value for observed.
+    gravity: float | None = None
+    temperature: int | None = None
+    radiation: int | None = None
+
+    # Mineral concentrations (1..100) — None for never-observed.
+    ironium_concentration: int | None = None
+    boranium_concentration: int | None = None
+    germanium_concentration: int | None = None
+
+    # Surface minerals in kT — 0 default is fine (panels render "0 kT").
+    surface_ironium: int = 0
+    surface_boranium: int = 0
+    surface_germanium: int = 0
+
+    # Installations — 0 default for never-observed and unowned planets.
+    factories: int = 0
+    mines: int = 0
+
+    @classmethod
+    def from_turn_planet(cls, p: dict) -> PlanetData:
+        """Build a ``PlanetData`` from one entry in the engine's PlayerView.
+
+        The engine emits either an Observed planet (full contents) or an
+        Unobserved planet (only id/name/x/y). Fields absent from the JSON —
+        the never-observed case — fall back to the dataclass defaults
+        (``None`` for hab and concentrations, ``0`` for surface and
+        installations, ``-1`` for ``years_since``).
+        """
+        return cls(
+            id=p["id"],
+            name=p["name"],
+            x=float(p["x"]),
+            y=float(p["y"]),
+            homeworld=p.get("homeworld", False),
+            owner=p.get("owner"),
+            population=p.get("population", 0),
+            years_since=p.get("years_since_last_scan", -1),
+            gravity=p.get("gravity"),
+            temperature=p.get("temperature"),
+            radiation=p.get("radiation"),
+            ironium_concentration=p.get("ironium_concentration"),
+            boranium_concentration=p.get("boranium_concentration"),
+            germanium_concentration=p.get("germanium_concentration"),
+            surface_ironium=p.get("surface_ironium", 0),
+            surface_boranium=p.get("surface_boranium", 0),
+            surface_germanium=p.get("surface_germanium", 0),
+            factories=p.get("factories", 0),
+            mines=p.get("mines", 0),
+        )
 
 
 # Default game name keyed on (difficulty, universe_size).
