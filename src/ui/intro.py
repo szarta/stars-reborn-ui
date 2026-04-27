@@ -221,7 +221,7 @@ class IntroUI(QDialog):
             planets=planets,
             universe_w=float(xy["universe_width"]),
             universe_h=float(xy["universe_height"]),
-            player_id=turn["player_id"],
+            player_id=turn["player-id"],
             game_year=turn["year"],
             game_name=game_name,
         )
@@ -248,7 +248,7 @@ class IntroUI(QDialog):
             return
 
         # Look for the companion .xy.json in the same directory
-        game_name = turn.get("game_name", "Game")
+        game_name = turn.get("game-name", "Game")
         safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in game_name)
         game_dir = os.path.dirname(path)
         xy_path = os.path.join(game_dir, f"{safe_name}.xy.json")
@@ -271,7 +271,7 @@ class IntroUI(QDialog):
             planets=planets,
             universe_w=universe_w,
             universe_h=universe_h,
-            player_id=turn.get("player_id", 0),
+            player_id=turn.get("player-id", 0),
             game_year=turn.get("year", 2400),
             game_name=game_name,
         )

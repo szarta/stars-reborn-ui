@@ -65,10 +65,12 @@ class PlanetData:
         """Build a ``PlanetData`` from one entry in the engine's PlayerView.
 
         The engine emits either an Observed planet (full contents) or an
-        Unobserved planet (only id/name/x/y). Fields absent from the JSON —
-        the never-observed case — fall back to the dataclass defaults
-        (``None`` for hab and concentrations, ``0`` for surface and
-        installations, ``-1`` for ``years_since``).
+        Unobserved planet (only id/name/x/y). Wire field names are
+        kebab-case per the project schema convention
+        (stars-reborn-schemas/response-turn-file.json). Fields absent
+        from the JSON — the never-observed case — fall back to the
+        dataclass defaults (``None`` for hab/concentrations/value, ``0``
+        for surface and installations, ``-1`` for ``years_since``).
         """
         return cls(
             id=p["id"],
@@ -78,16 +80,16 @@ class PlanetData:
             homeworld=p.get("homeworld", False),
             owner=p.get("owner"),
             population=p.get("population", 0),
-            years_since=p.get("years_since_last_scan", -1),
+            years_since=p.get("years-since-last-scan", -1),
             gravity=p.get("gravity"),
             temperature=p.get("temperature"),
             radiation=p.get("radiation"),
-            ironium_concentration=p.get("ironium_concentration"),
-            boranium_concentration=p.get("boranium_concentration"),
-            germanium_concentration=p.get("germanium_concentration"),
-            surface_ironium=p.get("surface_ironium", 0),
-            surface_boranium=p.get("surface_boranium", 0),
-            surface_germanium=p.get("surface_germanium", 0),
+            ironium_concentration=p.get("ironium-concentration"),
+            boranium_concentration=p.get("boranium-concentration"),
+            germanium_concentration=p.get("germanium-concentration"),
+            surface_ironium=p.get("surface-ironium", 0),
+            surface_boranium=p.get("surface-boranium", 0),
+            surface_germanium=p.get("surface-germanium", 0),
             factories=p.get("factories", 0),
             mines=p.get("mines", 0),
             value=p.get("value"),
