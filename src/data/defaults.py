@@ -56,6 +56,10 @@ class PlanetData:
     factories: int = 0
     mines: int = 0
 
+    # Planet value (0..100 habitable, negative red, capped at -45) computed
+    # against the viewing player's race. None for never-observed planets.
+    value: int | None = None
+
     @classmethod
     def from_turn_planet(cls, p: dict) -> PlanetData:
         """Build a ``PlanetData`` from one entry in the engine's PlayerView.
@@ -86,6 +90,7 @@ class PlanetData:
             surface_germanium=p.get("surface_germanium", 0),
             factories=p.get("factories", 0),
             mines=p.get("mines", 0),
+            value=p.get("value"),
         )
 
 
