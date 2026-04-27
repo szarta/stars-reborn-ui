@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QBoxLayout,
     QFrame,
     QLabel,
-    QLineEdit,
     QScrollArea,
     QSizePolicy,
     QWidget,
@@ -59,8 +58,8 @@ class _HabPanel(QWidget):
     _BG = QColor(0x00, 0x00, 0x00)
     _BORDER = QColor(0x60, 0x60, 0x60)
     _UNKNOWN_FILL = QColor(0x40, 0x40, 0x40)
-    _LABEL = QColor(0xCC, 0xCC, 0xCC)
-    _VALUE = QColor(0xCC, 0xCC, 0xCC)
+    _LABEL = QColor(0x00, 0x00, 0x00)
+    _VALUE = QColor(0x00, 0x00, 0x00)
     _DIAMOND_BORDER = QColor(0x00, 0x00, 0x00)
     _IMMUNE_TEXT = QColor(0xFF, 0xFF, 0xFF)
 
@@ -236,12 +235,13 @@ class _MineralPanel(QWidget):
     _BAR_H = 12
     _BAR_GAP = 1
     _RULER_H = 16
-    _LEFT_PAD = 26  # room for "kT" label at far left of the ruler
+    _LEFT_PAD = 78  # room for the mineral name label and the "kT" ruler tag
+    _RIGHT_PAD = 46  # matches _HabPanel._RIGHT_W so bar right edges align
     _DIAMOND = 9
 
     _BG = QColor(0x00, 0x00, 0x00)
     _BORDER = QColor(0x60, 0x60, 0x60)
-    _AXIS = QColor(0xCC, 0xCC, 0xCC)
+    _AXIS = QColor(0x00, 0x00, 0x00)
     _DIAMOND_BORDER = QColor(0x00, 0x00, 0x00)
 
     bar_clicked = Signal(str)  # "ironium" | "boranium" | "germanium"
@@ -265,7 +265,7 @@ class _MineralPanel(QWidget):
 
     def _chart_geometry(self):
         chart_x = self._LEFT_PAD
-        chart_w = max(40, self.width() - chart_x - 4)
+        chart_w = max(40, self.width() - chart_x - self._RIGHT_PAD)
         return chart_x, chart_w
 
     def _bar_y(self, i: int) -> int:
@@ -311,10 +311,12 @@ class _MineralPanel(QWidget):
                     self.FILLS[i],
                 )
 
+            # Mineral name sits to the LEFT of the bar (in the panel
+            # background), matching the original game's layout.
             p.setPen(self.FILLS[i])
             p.drawText(
-                QRectF(chart_x + 4, y, 80, self._BAR_H),
-                Qt.AlignVCenter | Qt.AlignLeft,
+                QRectF(0, y, chart_x - 4, self._BAR_H),
+                Qt.AlignVCenter | Qt.AlignRight,
                 self.LABELS[i],
             )
 
@@ -486,18 +488,23 @@ class PlanetSummaryWidget(QWidget):
             "color: #00ccee; background: black; padding: 2px 4px; font-family: monospace;"
         )
 
-        # Goto / search field (stub)
-        self._goto_line = QLineEdit()
-        self._goto_line.setFixedHeight(18)
-        self._goto_line.setStyleSheet("background: black; color: white; border: 1px solid #444;")
+        # Distance line — "<n> light years from <primary name>" when a
+        # secondary target distinct from the primary is selected.
+        self._distance_label = QLabel("")
+        self._distance_label.setStyleSheet(
+            "color: #00ccee; background: black; padding: 2px 4px; font-family: monospace;"
+        )
 
         # Planet name header
         self._name_label = QLabel()
         self._name_label.setAlignment(Qt.AlignCenter)
         self._name_label.setStyleSheet("font-weight: bold; font-size: 11pt;")
 
-        # Value + population row
+        # Value + population row.  The value text is indented to align with
+        # the start of the hab/mineral bars below; the population label
+        # remains right-aligned.
         self._value_label = QLabel()
+        self._value_label.setContentsMargins(_HabPanel._LEFT_W, 0, 0, 0)
         self._pop_label = _ClickableLabel()
         self._pop_label.setCursor(Qt.PointingHandCursor)
         val_row = QBoxLayout(QBoxLayout.Direction.LeftToRight)
@@ -505,8 +512,9 @@ class PlanetSummaryWidget(QWidget):
         val_row.addStretch(1)
         val_row.addWidget(self._pop_label)
 
-        # Report age
+        # Report age (aligned with the start of the hab/mineral bars).
         self._report_label = QLabel()
+        self._report_label.setContentsMargins(_HabPanel._LEFT_W, 0, 0, 0)
 
         # Hab panel (3 stacked axis bars with saturated tolerance bands)
         self._hab_panel = _HabPanel()
@@ -516,16 +524,17 @@ class PlanetSummaryWidget(QWidget):
 
         # Click-overlay popup + selection state
         self._popup = _ClickPopup(self)
-        self._current_planet = None
+        self._current_planet = None  # secondary target driving this pane
         self._current_player = None
+        self._current_primary = None  # primary target — only used for the distance line
 
         self._hab_panel.bar_clicked.connect(self._show_hab_overlay)
         self._mineral_panel.bar_clicked.connect(self._show_mineral_overlay)
         self._pop_label.clicked.connect(self._show_population_overlay)
 
-        # Dark-background content area
+        # Content area uses the default window-color background to match the
+        # original Stars! UI (light grey, like the rest of the app chrome).
         content = QWidget()
-        content.setStyleSheet("background: black; color: #dddddd;")
         cl = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         cl.setContentsMargins(4, 4, 4, 2)
         cl.setSpacing(1)
@@ -541,13 +550,13 @@ class PlanetSummaryWidget(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet("background: black; border: none;")
+        scroll.setFrameShape(QScrollArea.NoFrame)
 
         main = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(0)
         main.addWidget(self._coords_label)
-        main.addWidget(self._goto_line)
+        main.addWidget(self._distance_label)
         main.addWidget(scroll, 1)
         self.setLayout(main)
 
@@ -556,6 +565,28 @@ class PlanetSummaryWidget(QWidget):
     def update_hover_coords(self, x: float, y: float):
         """Called while the mouse hovers over the space map (no planet selected)."""
         self._coords_label.setText(f"X: {int(x)}  Y: {int(y)}")
+
+    def _refresh_distance_label(self):
+        """Set the distance line to "<n> light years from <primary>" when
+        a secondary target distinct from the primary is selected."""
+        secondary = self._current_planet
+        primary = self._current_primary
+        if secondary is None or primary is None or primary is secondary:
+            self._distance_label.setText("")
+            return
+        try:
+            dx = float(getattr(secondary, "x", 0)) - float(getattr(primary, "x", 0))
+            dy = float(getattr(secondary, "y", 0)) - float(getattr(primary, "y", 0))
+        except (TypeError, ValueError):
+            self._distance_label.setText("")
+            return
+        ly = (dx * dx + dy * dy) ** 0.5
+        self._distance_label.setText(f"{ly:.2f} light years from {primary.name}")
+
+    def set_primary_target(self, planet):
+        """Track the primary target for the "X light years from Y" line."""
+        self._current_primary = planet
+        self._refresh_distance_label()
 
     def update_planet(self, planet, player=None):
         """Called when a planet is selected on the space map."""
@@ -567,6 +598,7 @@ class PlanetSummaryWidget(QWidget):
         x = getattr(planet, "x", 0)
         y = getattr(planet, "y", 0)
         self._coords_label.setText(f"ID #{planet.id}  X: {int(x)}  Y: {int(y)}  {planet.name}")
+        self._refresh_distance_label()
 
         years_since = getattr(planet, "years_since", 0)
         self._name_label.setText(f"{planet.name} Summary")
@@ -582,8 +614,8 @@ class PlanetSummaryWidget(QWidget):
 
         value = getattr(planet, "value", None)
         if value is not None:
-            color = "#00cc00" if value >= 0 else "#cc0000"
-            self._value_label.setText(f'<font color="{color}">Value: <b>{value}%</b></font>')
+            color = "#298e12" if value >= 0 else "#cc0000"
+            self._value_label.setText(f'Value: <font color="{color}"><b>{value}%</b></font>')
         else:
             self._value_label.setText("")
 

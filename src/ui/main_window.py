@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSplitter,
     QStatusBar,
@@ -34,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..rendering.enumerations import PlanetView, ResourcePaths, ZoomLevel
+from ..rendering.enumerations import NeverSeenPlanet, PlanetView, ResourcePaths, ZoomLevel
 from .info_panel import LeftPanel
 from .planet_summary import PlanetSummaryWidget
 from .space_map import SpaceMap
@@ -97,6 +98,12 @@ class MainWindow(QMainWindow):
         self._game_name = game_name
         self._player = player
         self._view_opts = _ViewOptions()
+        # Two-slot target model — see SpaceMap docstring.
+        # _selected_planet always tracks the primary target (used by the
+        # zoom handler to keep that planet centred when the user changes
+        # zoom levels).
+        self._primary_id: int | None = None
+        self._secondary_id: int | None = None
         self._selected_planet = None
 
         self._init_ui()
@@ -115,21 +122,32 @@ class MainWindow(QMainWindow):
         self._left_panel = LeftPanel()
         self._left_panel.set_year(self._game_year)
 
-        # Space map
+        # Space map (absolute pixel-per-ly scale; scroll area provides panning).
         self._space_map = SpaceMap()
         self._space_map.planet_selected.connect(self._on_planet_selected)
-        self._space_map.planet_activated.connect(self._on_planet_activated)
         self._space_map.hover_world.connect(self._on_hover_world)
+        self._space_map.zoom_step.connect(self._on_wheel_zoom)
+
+        self._space_scroll = QScrollArea()
+        self._space_scroll.setWidget(self._space_map)
+        self._space_scroll.setWidgetResizable(False)
+        self._space_scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self._space_scroll.setFrameShape(QScrollArea.NoFrame)
+        self._space_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._space_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._space_scroll.viewport().setStyleSheet("background-color: black;")
 
         # Planet summary (below space map)
         self._planet_summary = PlanetSummaryWidget()
 
-        # Right pane: space map (top) + summary (bottom)
+        # Right pane: space map (top) + summary (bottom).  Original game
+        # anchors the planet summary to the bottom at a fixed height; the
+        # space map absorbs all vertical resize.
         right_splitter = QSplitter(Qt.Vertical)
-        right_splitter.addWidget(self._space_map)
+        right_splitter.addWidget(self._space_scroll)
         right_splitter.addWidget(self._planet_summary)
-        right_splitter.setStretchFactor(0, 3)
-        right_splitter.setStretchFactor(1, 1)
+        right_splitter.setStretchFactor(0, 1)
+        right_splitter.setStretchFactor(1, 0)
         right_splitter.setSizes([560, 200])
 
         # Main horizontal split: left panel | space map + summary
@@ -150,6 +168,41 @@ class MainWindow(QMainWindow):
             self._player_id,
         )
         self._space_map.set_show_names(self._view_opts.planet_names_overlay)
+        self._space_map.set_zoom(ZoomLevel.multipliers()[self._view_opts.zoom_level])
+        self._select_initial_target()
+
+    def _select_initial_target(self):
+        """Default target on load: the active player's homeworld (both slots)."""
+        home = next(
+            (
+                p
+                for p in self._planets
+                if getattr(p, "homeworld", False) and p.owner == self._player_id
+            ),
+            None,
+        )
+        if home is None:
+            return
+        self._primary_id = home.id
+        self._secondary_id = home.id
+        self._selected_planet = home
+        self._space_map.set_primary_target(home.id)
+        self._space_map.set_secondary_target(home.id)
+        self._left_panel.update_planet(home, self._player)
+        self._planet_summary.set_primary_target(home)
+        self._planet_summary.update_planet(home, self._player)
+        self._center_scroll_on_planet(home.id)
+
+    def _center_scroll_on_planet(self, pid: int):
+        """Scroll the space view so the given planet sits in the viewport center."""
+        pos = self._space_map.planet_screen_pos(pid)
+        if pos is None:
+            return
+        sx, sy = pos
+        vp = self._space_scroll.viewport()
+        # ensureVisible(x, y, xmargin, ymargin) — picking margins of half the
+        # viewport effectively centers (x, y) when the content is large enough.
+        self._space_scroll.ensureVisible(int(sx), int(sy), vp.width() // 2, vp.height() // 2)
 
     # ── menu bar ────────────────────────────────────────────────────────────
 
@@ -429,29 +482,44 @@ class MainWindow(QMainWindow):
 
     # ── slots ───────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _is_promotable(target) -> bool:
+        """Can this map object become the primary target?
+
+        Surveyed planets (any ownership) and own fleets are promotable.
+        Never-seen planets, enemy fleets, wormholes, mineral packets, space
+        debris, and the mystery trader are secondary-only and never enter
+        the left pane. Currently the space map only renders planets, so the
+        only branch exercised is the never-seen check; the helper is kept
+        so fleet support drops in cleanly.
+        """
+        if getattr(target, "years_since", 0) == NeverSeenPlanet:
+            return False
+        return True
+
     def _on_planet_selected(self, pid: int):
+        """Single-click on a planet.
+
+        Always sets the secondary target (drives the bottom-right pane and
+        the small arrow). Promotes to primary when this planet was already
+        the secondary target — i.e. the user has clicked it a second time.
+        """
         planet = next((p for p in self._planets if p.id == pid), None)
         if planet is None:
             return
-        self._selected_planet = planet
-        self._left_panel.update_planet(planet, self._player)
+
+        prior_secondary = self._secondary_id
+
+        self._secondary_id = pid
+        self._space_map.set_secondary_target(pid)
         self._planet_summary.update_planet(planet, self._player)
 
-    def _on_planet_activated(self, pid: int):
-        """Double-click on a planet — open the full detail dialog."""
-        planet = next((p for p in self._planets if p.id == pid), None)
-        if planet is None:
-            return
-        self._selected_planet = planet
-        self._left_panel.update_planet(planet, self._player)
-        self._planet_summary.update_planet(planet, self._player)
-        try:
-            from .dialogs.planet import PlanetDialog
-
-            dlg = PlanetDialog(planet, self._player, self)
-            dlg.exec()
-        except Exception:
-            pass
+        if self._is_promotable(planet) and prior_secondary == pid and self._primary_id != pid:
+            self._primary_id = pid
+            self._space_map.set_primary_target(pid)
+            self._left_panel.update_planet(planet, self._player)
+            self._planet_summary.set_primary_target(planet)
+            self._selected_planet = planet
 
     def _on_hover_world(self, wx: int, wy: int):
         self._planet_summary.update_hover_coords(wx, wy)
@@ -472,6 +540,15 @@ class MainWindow(QMainWindow):
         self._space_map.set_zoom(ZoomLevel.multipliers()[level])
         self._zoom_actions[level].setChecked(True)
         self._toolbar_zoom_actions[level].setChecked(True)
+        if self._selected_planet is not None:
+            self._center_scroll_on_planet(self._selected_planet.id)
+
+    def _on_wheel_zoom(self, direction: int):
+        """Wheel-zoom: step one preset in the requested direction."""
+        new_level = self._view_opts.zoom_level + direction
+        new_level = max(ZoomLevel.Lowest, min(ZoomLevel.Highest, new_level))
+        if new_level != self._view_opts.zoom_level:
+            self._handle_zoom(new_level)
 
     def _handle_add_waypoints(self):
         self.statusBar().showMessage("Waypoint mode — not yet implemented.")

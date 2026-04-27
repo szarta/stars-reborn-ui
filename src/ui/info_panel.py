@@ -118,6 +118,8 @@ class _PlanetHeaderSection(_SectionPane):
         self._picture.setFrameStyle(QFrame.Shape.Panel | QFrame.Shadow.Sunken)
         self._picture.setAlignment(Qt.AlignCenter)
         self._picture.setFixedSize(68, 68)
+        self._picture.setAutoFillBackground(True)
+        self._picture.setStyleSheet("background-color: black;")
 
         self._prev_btn = QPushButton("Prev")
         self._next_btn = QPushButton("Next")
@@ -524,11 +526,13 @@ class LeftPanel(QWidget):
         self._messages = _MessagesPane()
 
         # ── Vertical splitter: columns (top) / messages (bottom) ───────────
+        # Original game anchors the messages pane to the bottom at a fixed
+        # height; the section columns absorb vertical resize.
         self._splitter = QSplitter(Qt.Vertical)
         self._splitter.addWidget(columns)
         self._splitter.addWidget(self._messages)
-        self._splitter.setStretchFactor(0, 3)
-        self._splitter.setStretchFactor(1, 1)
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 0)
 
         main = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         main.setContentsMargins(0, 0, 0, 0)
