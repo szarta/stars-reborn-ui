@@ -191,7 +191,7 @@ class IntroUI(QDialog):
         turn = turn_resp.json()
 
         # --- Save game files ---
-        game_name = xy["game_name"]
+        game_name = xy["game-name"]
         safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in game_name)
 
         save_dir = QFileDialog.getExistingDirectory(
@@ -219,8 +219,8 @@ class IntroUI(QDialog):
 
         self._main_window = MainWindow(
             planets=planets,
-            universe_w=float(xy["universe_width"]),
-            universe_h=float(xy["universe_height"]),
+            universe_w=float(xy["universe-width"]),
+            universe_h=float(xy["universe-height"]),
             player_id=turn["player-id"],
             game_year=turn["year"],
             game_name=game_name,
@@ -258,8 +258,8 @@ class IntroUI(QDialog):
             try:
                 with open(xy_path, encoding="utf-8") as f:
                     xy = json.load(f)
-                universe_w = float(xy.get("universe_width", 800))
-                universe_h = float(xy.get("universe_height", 800))
+                universe_w = float(xy.get("universe-width", 800))
+                universe_h = float(xy.get("universe-height", 800))
             except Exception as exc:
                 log.warning("Could not read %s: %s", xy_path, exc)
 
