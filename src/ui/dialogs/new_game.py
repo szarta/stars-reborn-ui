@@ -157,9 +157,9 @@ class NewGameDialog(QDialog):
         race_layout.setSpacing(6)
 
         self._race_combo = QComboBox()
-        self._race_combo.addItem(_RANDOM_RACE)
         for name in _PREDEFINED_RACES:
             self._race_combo.addItem(name)
+        self._race_combo.addItem(_RANDOM_RACE)
         race_layout.addWidget(self._race_combo)
 
         self._customize_btn = QPushButton("Customize Race...")
